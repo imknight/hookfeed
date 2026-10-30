@@ -1,0 +1,8 @@
+{
+  "_fixture": "SYNTHETIC: based on official Claude Code hook documentation; not a live session.",
+  "session_id": "synthetic-claude-session",
+  "cwd": "/Users/example/Work/MailScope",
+  "hook_event_name": "Notification",
+  "notification_type": "idle_prompt",
+  "message": "Claude is waiting for your input"
+}

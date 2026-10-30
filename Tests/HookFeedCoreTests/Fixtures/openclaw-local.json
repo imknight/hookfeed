@@ -1,0 +1,12 @@
+{
+  "mcp" : {
+    "servers" : {
+      "hookfeed" : {
+        "args" : [
+          "mcp"
+        ],
+        "command" : "/Applications/HookFeed.app/Contents/Helpers/hookfeed"
+      }
+    }
+  }
+}

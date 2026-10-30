@@ -1,0 +1,9 @@
+{
+  "_fixture": "SYNTHETIC: based on official Claude Code hook documentation; not captured from a live session.",
+  "session_id": "synthetic-claude-session",
+  "transcript_path": "/tmp/synthetic-transcript.jsonl",
+  "cwd": "/Users/example/Work/MailScope",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Build complete 🦉\nQuotes: \"hello\"; don't interpolate $(anything).\nSecond paragraph."
+}

@@ -1,0 +1,9 @@
+{
+  "_fixture": "SYNTHETIC: based on official Claude Code hook documentation; not a live approval event.",
+  "session_id": "synthetic-claude-session",
+  "cwd": "/Users/example/Work/MailScope",
+  "hook_event_name": "Notification",
+  "notification_type": "permission_prompt",
+  "message": "Claude needs your permission",
+  "title": "Permission needed"
+}

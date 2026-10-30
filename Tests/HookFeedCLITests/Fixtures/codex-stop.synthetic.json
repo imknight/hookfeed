@@ -1,0 +1,9 @@
+{
+  "_fixture": "SYNTHETIC: based on official OpenAI hook documentation; not captured from a live session.",
+  "session_id": "synthetic-codex-session",
+  "turn_id": "synthetic-turn-1",
+  "cwd": "/Users/example/Work/MailScope",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Tests passed ✅\nAll checks complete."
+}

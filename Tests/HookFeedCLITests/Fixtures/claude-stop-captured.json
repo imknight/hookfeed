@@ -1,0 +1,15 @@
+{
+  "session_id": "real-session-id-redacted",
+  "transcript_path": "/tmp/hookfeed-live-session/transcript.jsonl",
+  "cwd": "/tmp/hookfeed-live-session",
+  "prompt_id": "real-prompt-id-redacted",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "HookFeed live hook verified.",
+  "background_tasks": [],
+  "session_crons": []
+}

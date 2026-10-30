@@ -1,0 +1,14 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000005",
+  "turn_id": "00000000-0000-4000-8000-000000000006",
+  "transcript_path": "/tmp/codex-capture/session.jsonl",
+  "cwd": "/tmp/codex-capture/project",
+  "hook_event_name": "PermissionRequest",
+  "model": "gpt-5.4",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "printf hookfeed-approval-capture",
+    "description": "Allow the harmless HookFeed approval capture?"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/antigravity-captured-session",
+  "conversationId": "antigravity-captured-session",
+  "error": "",
+  "executionNum": 0,
+  "fullyIdle": true,
+  "lastUserInput": "Reply with exactly: HookFeed Antigravity acceptance complete. Do not use tools or edit any files.",
+  "modelName": "gemini-4-argon-medium",
+  "terminationReason": "NO_TOOL_CALL",
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/antigravity-captured-session/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+    "/workspace/hookfeed"
+  ]
+}

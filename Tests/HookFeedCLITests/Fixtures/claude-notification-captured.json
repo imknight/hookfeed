@@ -1,0 +1,10 @@
+{
+  "session_id": "real-session-id-redacted",
+  "transcript_path": "/tmp/hookfeed-live-session/transcript.jsonl",
+  "cwd": "/tmp/hookfeed-live-session",
+  "scratchpad_dir": "/tmp/hookfeed-live-session/scratchpad",
+  "prompt_id": "real-prompt-id-redacted",
+  "hook_event_name": "Notification",
+  "message": "Claude needs your permission",
+  "notification_type": "permission_prompt"
+}

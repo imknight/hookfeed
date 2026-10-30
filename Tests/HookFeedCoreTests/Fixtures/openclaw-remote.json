@@ -1,0 +1,13 @@
+{
+  "mcp" : {
+    "servers" : {
+      "hookfeed" : {
+        "headers" : {
+          "Authorization" : "Bearer test-token"
+        },
+        "transport" : "streamable-http",
+        "url" : "https://mac.tailnet.ts.net/mcp"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "_fixture": "SYNTHETIC: based on official OpenAI legacy notify documentation; not a live notification.",
+  "type": "agent-turn-complete",
+  "thread-id": "synthetic-legacy-session",
+  "turn-id": "synthetic-legacy-turn",
+  "input-messages": ["A synthetic user request"],
+  "last-assistant-message": "Legacy turn complete"
+}

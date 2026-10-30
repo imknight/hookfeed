@@ -1,0 +1,4 @@
+OpenClaw-managed MCP servers (/home/agent/.openclaw/openclaw.json):
+- docs
+- hookfeed
+

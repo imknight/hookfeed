@@ -1,0 +1,81 @@
+import CryptoKit
+import Foundation
+import Security
+
+public struct RemoteConnection: Codable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let route: ReachRoute
+    public let tokenHash: Data
+    public let createdAt: Date
+    public var lastUsedAt: Date?
+}
+
+public protocol RemoteSecretStore {
+    func load() throws -> [RemoteConnection]
+    func save(_ connections: [RemoteConnection]) throws
+}
+
+public final class RemoteConnections: @unchecked Sendable {
+    private let store: any RemoteSecretStore
+    private var connections: [RemoteConnection]
+    private let lock = NSLock()
+
+    public init(store: any RemoteSecretStore) throws {
+        self.store = store
+        connections = try store.load()
+    }
+
+    public var all: [RemoteConnection] {
+        lock.lock(); defer { lock.unlock() }
+        return connections
+    }
+
+    public func create(name: String, route: ReachRoute, now: Date) throws -> (connection: RemoteConnection, token: String) {
+        let name = name.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.count <= 80, !name.utf8.contains(0) else {
+            throw HookFeedError.invalidInput(field: "name", reason: "use 1–80 characters.")
+        }
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            throw HookFeedError.invalidInput(field: "token", reason: "could not generate secure random bytes.")
+        }
+        let token = "hf_" + Data(bytes).base64EncodedString().replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+        let connection = RemoteConnection(id: UUID().uuidString.lowercased(), name: name, route: route,
+                                          tokenHash: Data(SHA256.hash(data: Data(token.utf8))), createdAt: now)
+        lock.lock(); defer { lock.unlock() }
+        let updated = connections + [connection]
+        try store.save(updated)
+        connections = updated
+        return (connection, token)
+    }
+
+    public func authenticate(bearer: String?) -> RemoteConnection? {
+        guard let bearer, bearer.hasPrefix("hf_"), bearer.utf8.count == 46 else { return nil }
+        let hash = Data(SHA256.hash(data: Data(bearer.utf8)))
+        lock.lock(); defer { lock.unlock() }
+        return connections.first { connection in
+            guard connection.tokenHash.count == hash.count else { return false }
+            var difference: UInt8 = 0
+            for (a, b) in zip(connection.tokenHash, hash) { difference |= a ^ b }
+            return difference == 0
+        }
+    }
+
+    public func revoke(id: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        let updated = connections.filter { $0.id != id }
+        try store.save(updated)
+        connections = updated
+    }
+
+    public func markUsed(id: String, now: Date) {
+        lock.lock(); defer { lock.unlock() }
+        guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
+        var updated = connections
+        updated[index].lastUsedAt = now
+        // A metadata write failure must not turn an already stored message into a failed send.
+        do { try store.save(updated); connections = updated } catch { }
+    }
+}

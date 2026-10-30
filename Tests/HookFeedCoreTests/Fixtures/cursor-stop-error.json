@@ -1,0 +1,14 @@
+{
+  "conversation_id": "cursor-conversation-1",
+  "generation_id": "cursor-generation-1",
+  "model": "example-model",
+  "hook_event_name": "stop",
+  "cursor_version": "docs-fixture",
+  "workspace_roots": [
+    "/Users/example/Projects/demo"
+  ],
+  "user_email": null,
+  "transcript_path": null,
+  "status": "error",
+  "loop_count": 0
+}

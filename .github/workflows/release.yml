@@ -1,0 +1,92 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag matching Info.plist (need not exist for a branch dry run)
+        required: true
+        type: string
+      dry_run:
+        description: Sign and notarize, but do not publish
+        required: true
+        default: true
+        type: boolean
+permissions:
+  contents: write
+concurrency:
+  group: hookfeed-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '--publish' }}
+      HOOKFEED_SIGN_IDENTITY: 'Developer ID Application: Rework Labs (FDRSA4WESN)'
+      HOOKFEED_NOTARY_PROFILE: hookfeed-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate version and toolchain
+        run: |
+          printf 'HOOKFEED_NOTARY_KEYCHAIN=%s/hookfeed-signing/release.keychain-db\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          test "$(uname -m)" = arm64
+          swift --version
+          python3 scripts/release-metadata.py config "$RELEASE_TAG" >/dev/null
+          if [ "$RELEASE_MODE" = --publish ]; then
+            test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          fi
+      - name: Tests
+        run: swift test
+      - name: Import temporary signing and notarization credentials
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_P8: ${{ secrets.ASC_PRIVATE_KEY_P8 }}
+        run: |
+          set +x
+          umask 077
+          mkdir -p "$RUNNER_TEMP/hookfeed-signing"
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          folder = Path(os.environ['RUNNER_TEMP']) / 'hookfeed-signing'
+          (folder / 'signing.p12').write_bytes(base64.b64decode(os.environ['MACOS_SIGNING_P12'], validate=True))
+          (folder / 'AuthKey.p8').write_text(os.environ['ASC_PRIVATE_KEY_P8'])
+          PY
+          password="$(openssl rand -hex 32)"
+          security create-keychain -p "$password" "$HOOKFEED_NOTARY_KEYCHAIN"
+          security set-keychain-settings -lut 7200 "$HOOKFEED_NOTARY_KEYCHAIN"
+          security unlock-keychain -p "$password" "$HOOKFEED_NOTARY_KEYCHAIN"
+          security import "$RUNNER_TEMP/hookfeed-signing/signing.p12" -k "$HOOKFEED_NOTARY_KEYCHAIN" -P "$MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign >/dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$HOOKFEED_NOTARY_KEYCHAIN" >/dev/null
+          python3 - <<'PY'
+          import os, shlex, subprocess
+          existing = shlex.split(subprocess.check_output(['security', 'list-keychains', '-d', 'user'], text=True))
+          subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', os.environ['HOOKFEED_NOTARY_KEYCHAIN'], *existing], check=True)
+          PY
+          xcrun notarytool store-credentials "$HOOKFEED_NOTARY_PROFILE" --key "$RUNNER_TEMP/hookfeed-signing/AuthKey.p8" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --keychain "$HOOKFEED_NOTARY_KEYCHAIN" >/dev/null
+          rm "$RUNNER_TEMP/hookfeed-signing/signing.p12" "$RUNNER_TEMP/hookfeed-signing/AuthKey.p8"
+      - name: Build, notarize, package, verify and optionally publish
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: ./scripts/release.sh "$RELEASE_MODE" "$RELEASE_TAG"
+      - name: Save verified artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HookFeed-${{ env.RELEASE_TAG }}
+          path: dist/release/
+          if-no-files-found: error
+      - name: Delete temporary credentials
+        if: always()
+        run: |
+          security delete-keychain "$HOOKFEED_NOTARY_KEYCHAIN" || true
+          rm -rf "$RUNNER_TEMP/hookfeed-signing"

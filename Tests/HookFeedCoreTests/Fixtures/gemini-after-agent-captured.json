@@ -1,0 +1,10 @@
+{
+  "session_id": "gemini-session-captured",
+  "transcript_path": "/Users/example/.gemini/tmp/hookfeed/chats/session-captured.jsonl",
+  "cwd": "/Users/example/Projects/hookfeed",
+  "hook_event_name": "AfterAgent",
+  "timestamp": "2026-10-26T22:06:56.928Z",
+  "prompt": "Run printf hookfeed-gemini-permission once, then report completion.",
+  "prompt_response": "HookFeed Gemini completion acceptance passed.",
+  "stop_hook_active": false
+}
