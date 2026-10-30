@@ -28,6 +28,28 @@ def configuration(tag):
     return version, build, feed, match[1], public_key
 
 
+def changelog_notes(path, version):
+    """Return only this version's CHANGELOG section, or None when the file or section is absent."""
+    if not Path(path).is_file():
+        return None
+    heading = re.compile(r'##\s+\[?v?' + re.escape(version) + r'\]?(\s.*)?')
+    lines, section = Path(path).read_text().splitlines(), None
+    for line in lines:
+        if section is None:
+            if heading.fullmatch(line.rstrip()):
+                section = []
+        elif re.match(r'#{1,2}\s', line):
+            break
+        elif not re.match(r'\[[^\]]+\]:\s*\S', line):  # Skip link reference definitions.
+            section.append(line)
+    if section is None:
+        return None
+    notes = '\n'.join(section).strip()
+    if not notes:
+        raise ValueError(f'CHANGELOG.md section for {version} is empty')
+    return notes + '\n'
+
+
 def items(path):
     root = ET.parse(path).getroot()
     if root.tag != 'rss' or root.find('channel') is None:
@@ -76,6 +98,10 @@ if __name__ == '__main__':
             check_build(sys.argv[3], config[1])
         elif command == 'enclosure':
             print('\t'.join(enclosure(sys.argv[3], config)))
+        elif command == 'notes':
+            notes = changelog_notes(sys.argv[3], config[0])
+            if notes is not None:
+                sys.stdout.write(notes)
         else:
             raise ValueError('Unknown metadata command')
     except (ValueError, KeyError, ET.ParseError) as error:

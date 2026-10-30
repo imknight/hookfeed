@@ -70,6 +70,32 @@ try Data(key.publicKey.rawRepresentation.base64EncodedString().utf8).write(to: f
         finally:
             metadata.ROOT = original_root
 
+    def test_changelog_notes_use_only_the_matching_section(self):
+        changelog = self.work / 'CHANGELOG.md'
+        changelog.write_text('''# Changelog
+
+## [Unreleased]
+- Not shipped yet
+
+## [0.2.0] - 2026-11-02
+### Fixed
+- Second release fix
+
+## v0.1.0
+- First release
+
+[0.2.0]: https://github.com/example/app/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/example/app/releases/tag/v0.1.0
+''')
+        self.assertEqual(metadata.changelog_notes(changelog, '0.2.0'), '### Fixed\n- Second release fix\n')
+        self.assertEqual(metadata.changelog_notes(changelog, '0.1.0'), '- First release\n')
+        self.assertIsNone(metadata.changelog_notes(changelog, '0.1'))
+        self.assertIsNone(metadata.changelog_notes(changelog, '0.3.0'))
+        self.assertIsNone(metadata.changelog_notes(self.work / 'missing.md', '0.1.0'))
+        changelog.write_text('## 0.4.0\n\n## 0.3.0\n- Real notes\n')
+        with self.assertRaisesRegex(ValueError, 'empty'):
+            metadata.changelog_notes(changelog, '0.4.0')
+
     def test_signature_and_tampering(self):
         archive = self.work / 'archive.zip'
         archive.write_bytes(b'archive fixture')

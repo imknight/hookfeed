@@ -24,7 +24,7 @@ Repository and public-key configuration is ready. A dry run reads the public rep
 
 ## Version, test, dry run
 
-1. Set `CFBundleShortVersionString` to `X.Y.Z` and `CFBundleVersion` to a positive integer greater than every previously shipped build (including withdrawn releases). Never reuse a build number. Commit these changes and release notes in `CHANGELOG.md`, or use an annotated tag's message for release notes.
+1. Set `CFBundleShortVersionString` to `X.Y.Z` and `CFBundleVersion` to a positive integer greater than every previously shipped build (including withdrawn releases). Never reuse a build number. Commit these changes with a `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`, or use an annotated tag's message for release notes.
 2. Run the local checks below. No snapshot regeneration is required for the General settings update section.
 3. Dispatch **Release** on the desired branch with `tag: vX.Y.Z` and `dry_run: true`. The tag need not exist for a branch dry run; its version must match Info.plist.
 4. Download the workflow artifact. Test the DMG on another Mac or a fresh user account before publishing.
@@ -70,7 +70,7 @@ Output is `dist/release/`: versioned zip and DMG, cumulative `appcast.xml`, and 
 
 After reviewing the dry run, create an annotated `vX.Y.Z` tag at the exact tested commit and push it to the **public** repository. The `v*` workflow runs on an arm64 macOS runner. Alternatively, from that clean tagged checkout, run `./scripts/release.sh --publish vX.Y.Z` with the same local credentials. Manual workflow dispatch with `dry_run: false` also requires the selected checkout's HEAD to equal the specified tag.
 
-Publication uses `gh release create --verify-tag`; it does not create or push a tag. It uploads `HookFeed-X.Y.Z.zip`, `HookFeed-X.Y.Z.dmg` and the complete `appcast.xml`. Notes come from `CHANGELOG.md` when present, otherwise the annotated tag. It never overwrites an existing release.
+Publication uses `gh release create --verify-tag`; it does not create or push a tag. It uploads `HookFeed-X.Y.Z.zip`, `HookFeed-X.Y.Z.dmg` and the complete `appcast.xml`. Notes come from the matching version section of `CHANGELOG.md` (never the whole file), otherwise the annotated tag; an empty section fails before building. It never overwrites an existing release.
 
 The post-publication check fetches the configured **latest** appcast and both assets without authentication, checks version/build, the exact enclosure URL and zip length, verifies Ed25519 against `SUPublicEDKey`, then checks signatures, Gatekeeper's `Notarized Developer ID` assessment and staple tickets. It also mounts the DMG read-only and verifies its bundled app. Run it again with:
 

@@ -49,6 +49,18 @@ if [ "$stable_count" -gt 0 ]; then
     python3 "$ROOT/scripts/release-metadata.py" check-build "$tag" "$artifacts/appcast.xml"
 fi
 
+# Only this version's CHANGELOG.md section is published; the appcast embeds these notes.
+python3 "$ROOT/scripts/release-metadata.py" notes "$tag" "$ROOT/CHANGELOG.md" > "$staging/notes.md"
+if [ -s "$staging/notes.md" ]; then
+    :
+elif [ "$(git -C "$ROOT" cat-file -t "refs/tags/$tag" 2>/dev/null || true)" = tag ]; then
+    git -C "$ROOT" for-each-ref --format='%(contents)' "refs/tags/$tag" > "$staging/notes.md"
+elif [ "$mode" = --dry-run ]; then
+    printf 'Dry run for HookFeed %s (build %s).\n' "$version" "$build" > "$staging/notes.md"
+else
+    printf 'Add a CHANGELOG.md section for %s or use an annotated tag for release notes.\n' "$version" >&2; exit 1
+fi
+
 "$ROOT/scripts/build-app.sh"
 app="$ROOT/dist/HookFeed.app"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :HookFeedBuildRevision' "$app/Contents/Info.plist")" = "$(git -C "$ROOT" rev-parse HEAD)" ]
@@ -78,15 +90,6 @@ codesign --force --sign "$HOOKFEED_SIGN_IDENTITY" --timestamp "$staging/HookFeed
 notarize "$staging/HookFeed-$version.dmg"
 xcrun stapler staple "$staging/HookFeed-$version.dmg"
 
-if [ -f "$ROOT/CHANGELOG.md" ]; then
-    cp "$ROOT/CHANGELOG.md" "$staging/notes.md"
-elif [ "$(git -C "$ROOT" cat-file -t "refs/tags/$tag" 2>/dev/null || true)" = tag ]; then
-    git -C "$ROOT" for-each-ref --format='%(contents)' "refs/tags/$tag" > "$staging/notes.md"
-elif [ "$mode" = --dry-run ]; then
-    printf 'Dry run for HookFeed %s (build %s).\n' "$version" "$build" > "$staging/notes.md"
-else
-    printf 'Provide CHANGELOG.md or an annotated tag for release notes.\n' >&2; exit 1
-fi
 cp "$staging/notes.md" "$artifacts/HookFeed-$version.md"
 scratch_path="${HOOKFEED_BUILD_PATH:-$ROOT/.build-package}"
 case "$scratch_path" in /*) ;; *) scratch_path="$ROOT/$scratch_path" ;; esac
