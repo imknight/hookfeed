@@ -6,6 +6,16 @@ HookFeed is a native SwiftUI Mac app for updates from local agents and scripts. 
 
 Visit [hookfeed.app](https://hookfeed.app) or browse the [documentation](docs/README.md) for setup, usage, and integration guides.
 
+## Install with Homebrew
+
+```sh
+brew tap imknight/tap
+brew trust imknight/tap
+brew install --cask hookfeed
+```
+
+This installs the signed release app and links the `hookfeed` CLI. The app updates itself with Sparkle.
+
 ## Build and install
 
 Use an Apple silicon Mac running macOS 14 or later with the full Xcode toolchain selected (`xcode-select -p`) and Swift 6 or later. Xcode 27 is the development toolchain. The first build downloads the Swift package dependencies declared in `Package.swift`: GRDB, Swift Argument Parser, the Swift MCP SDK, and Sparkle 2.10.1. Keep `Package.resolved` with the source revision for repeatable dependency resolution.

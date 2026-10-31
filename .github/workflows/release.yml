@@ -87,6 +87,29 @@ jobs:
           name: HookFeed-${{ env.RELEASE_TAG }}
           path: dist/release/
           if-no-files-found: error
+      - name: Bump Homebrew cask
+        if: env.RELEASE_MODE == '--publish'
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set; update imknight/homebrew-tap manually."
+            exit 0
+          fi
+          version="${RELEASE_TAG#v}"
+          sha="$(shasum -a 256 "dist/release/HookFeed-$version.zip" | cut -d' ' -f1)"
+          tap="$RUNNER_TEMP/homebrew-tap"
+          git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/imknight/homebrew-tap.git" "$tap"
+          sed -i '' -E "s/^  version \".*\"/  version \"$version\"/; s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$tap/Casks/hookfeed.rb"
+          grep -q "version \"$version\"" "$tap/Casks/hookfeed.rb"
+          grep -q "sha256 \"$sha\"" "$tap/Casks/hookfeed.rb"
+          if git -C "$tap" diff --quiet; then
+            echo "Cask already at $version"
+          else
+            git -C "$tap" -c user.name="hookfeed-release" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -am "hookfeed $version"
+            git -C "$tap" push origin HEAD
+          fi
       - name: Delete temporary credentials
         if: always()
         run: |

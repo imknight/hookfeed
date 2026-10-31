@@ -18,6 +18,8 @@ The release pipeline produces arm64, unsandboxed, Developer ID signed and notari
 | `ASC_PRIVATE_KEY_P8` | The API key's full PEM text, not base64 |
 | `SPARKLE_PRIVATE_KEY` | The base64 key string exported from Sparkle account `hookfeed` using `generate_keys --account hookfeed -x` |
 
+Optionally add `HOMEBREW_TAP_TOKEN`: a fine-grained personal access token with **Contents: read and write** on `imknight/homebrew-tap` only. On publish, the workflow sets the cask's `version` and `sha256` from the verified zip and pushes to the tap. Without it, the step warns and the cask must be updated by hand.
+
 The workflow uses the built-in `GITHUB_TOKEN` with `contents: write`; no personal token or cloud storage credentials are needed. It imports signing material into a temporary keychain, stores notary credentials there, and always deletes that keychain and temporary files. Only the verified release output directory is uploaded as artifacts.
 
 Repository and public-key configuration is ready. A dry run reads the public repository's feed and never publishes; the destination repository must exist so the script can distinguish a first release from an API failure.
