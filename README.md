@@ -2,9 +2,9 @@
 
 Your agents. One inbox.
 
-HookFeed is a native Mac app that collects updates from local agents and scripts in one inbox: finished work, failures, and requests for input. Messages stay in a local SQLite store. No account, API key, or model inference is involved.
+**[hookfeed.app](https://hookfeed.app)** · [Download](https://github.com/imknight/hookfeed/releases/latest) · [Documentation](docs/README.md)
 
-Visit [hookfeed.app](https://hookfeed.app) or browse the [documentation](docs/README.md).
+HookFeed is a native Mac app that collects updates from local agents and scripts in one inbox: finished work, failures, and requests for input. Messages stay in a local SQLite store. No account, API key, or model inference is involved.
 
 - Main window and menu bar inbox, with threads grouped by project, source and bot
 - Search, pinning, an attention-only view, and Markdown message bodies
@@ -30,7 +30,7 @@ This installs the app and links the `hookfeed` CLI onto your PATH. HookFeed upda
 
 ### Download
 
-Download `HookFeed-X.Y.Z.dmg` from the [latest release](https://github.com/imknight/hookfeed/releases/latest) and drag HookFeed to Applications. To use the CLI, choose **Install for me** in **Settings → Integrations → Command-line tool**.
+Download `HookFeed-X.Y.Z.dmg` from [hookfeed.app](https://hookfeed.app) or the [latest release](https://github.com/imknight/hookfeed/releases/latest), and drag HookFeed to Applications. To use the CLI, choose **Install for me** in **Settings → Integrations → Command-line tool**.
 
 ### Build from source
 
