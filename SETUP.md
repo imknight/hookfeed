@@ -47,6 +47,8 @@ Click **Enable notifications** in HookFeed to request permission. Defaults: **Al
 
 Data stays in `~/Library/Application Support/HookFeed/inbox.sqlite`; hook logs are in `~/Library/Logs/HookFeed/hook.log`. No account, API key, model inference, network listener, or hosted relay is required. The CLI can create the store before the app runs. A receipt means stored locally, not seen. Agents may need write access to that folder under their own sandbox settings.
 
+With the app quit, sends still persist; banners appear only for new activity while the app is running, and old messages do not replay as banners on launch. The hook adapters are intended to fail open for the originating agent. Configure one delivery route per agent to avoid duplicate updates. MCP sends depend on the agent choosing to call the tool.
+
 ## Burst delivery and queued hooks
 
 HookFeed uses SQLite WAL so inbox reads do not block writers. When a local hook cannot acquire storage in time, it queues the normalized update in `spool/` beside `inbox.sqlite`. `HOOKFEED_STORE_PATH` moves both together. The directory is private (0700), each JSON file is private (0600), and no raw hook payload or transcript is queued. The queue is capped at 10,000 files; a full or unwritable queue drops the update and logs a diagnostic.

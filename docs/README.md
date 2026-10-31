@@ -6,4 +6,5 @@
 - [Adding an integration](guides/adding-an-integration.md) — contributor guidance and verification requirements.
 - [Cursor integration](cursor-integration.md) — hooks, MCP fallback, and verification limits.
 - [OpenClaw integration](openclaw-integration.md) — local and remote MCP setup and verification limits.
+- [Development](../DEVELOPMENT.md) — build from source, signing, Xcode, and tests.
 - [Release instructions](../RELEASING.md) — signing, notarization, and publishing for maintainers.
