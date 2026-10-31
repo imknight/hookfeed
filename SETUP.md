@@ -1,6 +1,22 @@
 # HookFeed setup
 
-Requires an Apple silicon Mac running macOS 14+ and the full Xcode toolchain with Swift 6 or later. Run from this checkout:
+Requires an Apple silicon Mac running macOS 14+.
+
+## Install with Homebrew
+
+```sh
+brew tap imknight/tap
+brew trust imknight/tap
+brew install --cask hookfeed
+open -a HookFeed
+hookfeed --version
+```
+
+The cask installs the signed release app and links its bundled CLI onto your Homebrew PATH, so skip the symlink step below. HookFeed updates itself with Sparkle; `brew upgrade` leaves it alone. `brew uninstall --cask --zap hookfeed` also removes the inbox database and preferences. The integration examples below use `/Applications/HookFeed.app/Contents/Helpers/hookfeed`, which is where Homebrew installs it.
+
+## Build from source
+
+Building requires the full Xcode toolchain with Swift 6 or later. Run from this checkout:
 
 ```sh
 ./scripts/build-app.sh
