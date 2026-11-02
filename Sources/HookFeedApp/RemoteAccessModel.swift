@@ -67,7 +67,7 @@ final class RemoteAccessModel: ObservableObject {
             let store = try InboxStore()
             let secrets = KeychainSecretStore()
             backgroundStatus = backgroundService.status
-            if backgroundEnabled, let helper = secrets.helperPath { try secrets.authorizeHelper(at: helper) }
+            if backgroundEnabled, let helper = secrets.helperPath { try secrets.authorizeHelper(at: helper, coordinationPath: RemotePreferences.connectionsLockPath) }
             let registry = try RemoteConnections(store: secrets, coordinationPath: RemotePreferences.connectionsLockPath)
             self.registry = registry
             connections = registry.all
@@ -112,7 +112,7 @@ final class RemoteAccessModel: ObservableObject {
                     throw ConfigurationError("Build and install HookFeed.app before enabling its background receiver.")
                 }
                 stop()
-                try KeychainSecretStore().authorizeHelper(at: helper.path)
+                try KeychainSecretStore().authorizeHelper(at: helper.path, coordinationPath: RemotePreferences.connectionsLockPath)
                 if backgroundService.status != .enabled { try backgroundService.register() }
             } else { try await backgroundService.unregister() }
             backgroundStatus = backgroundService.status

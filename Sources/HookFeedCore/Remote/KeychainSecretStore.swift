@@ -60,16 +60,20 @@ public struct KeychainSecretStore: RemoteSecretStore {
         } else if status != errSecSuccess { throw KeychainFailure(operation: "update", status: status) }
     }
 
-    public func authorizeHelper(at path: String) throws {
-        try save(load())
-        let access = try helperAccess(at: path)
-        var query = query
-        query[kSecReturnRef as String] = true
-        var item: CFTypeRef?
-        var status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let item else { throw KeychainFailure(operation: "find", status: status) }
-        status = SecKeychainItemSetAccess(item as! SecKeychainItem, access)
-        guard status == errSecSuccess else { throw KeychainFailure(operation: "authorize helper for", status: status) }
+    public func authorizeHelper(at path: String, coordinationPath: String? = nil) throws {
+        let ownership = try coordinationPath.map { try RemoteFileLock(path: $0, wait: true) }
+        try withExtendedLifetime(ownership) {
+            try ownership?.bumpVersion()
+            try save(load())
+            let access = try helperAccess(at: path)
+            var query = query
+            query[kSecReturnRef as String] = true
+            var item: CFTypeRef?
+            var status = SecItemCopyMatching(query as CFDictionary, &item)
+            guard status == errSecSuccess, let item else { throw KeychainFailure(operation: "find", status: status) }
+            status = SecKeychainItemSetAccess(item as! SecKeychainItem, access)
+            guard status == errSecSuccess else { throw KeychainFailure(operation: "authorize helper for", status: status) }
+        }
     }
 
     private func helperAccess(at path: String) throws -> SecAccess {
