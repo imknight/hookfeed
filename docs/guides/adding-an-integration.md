@@ -12,3 +12,5 @@ Integrations are compiled-in data in `Sources/HookFeedCore/Integrations.swift`. 
 Connect all is a review-first flow: detection does not install anything. It includes only detected, actionable integrations needing installation or stale-path repair. Applying the selection runs in registry order and reports each result independently. Changes to a JSON config after preview require a fresh preview.
 
 As of 2026-10-26, Hermes is copy-only: v0.22.2 prompts for tool selection during `mcp add` and cancels on EOF even though it exits 0. The positive MCP command tests and two-agent Connect all snapshot use an explicitly synthetic descriptor; they do not prove unattended Hermes installation.
+
+Grok Bot uses a generic, copy-only MCP entry because this repository has no verified Grok Bot config path or schema. Its examples assume stdio MCP on the same Mac or Streamable HTTP with a URL and bearer token remotely. The prompt asks the agent to find its own documented config format, sets `source` to `grokbot`, and offers `hookfeed send --source grokbot` for scripts. Detection checks only for an executable named `grokbot`; it does not guess a config directory or install command.

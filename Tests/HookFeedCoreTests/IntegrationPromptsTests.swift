@@ -3,6 +3,18 @@ import XCTest
 @testable import HookFeedCore
 
 final class IntegrationPromptsTests: XCTestCase {
+    func testGrokBotUsesGenericMCPAndExplicitSource() throws {
+        let path = "/Applications/Knight's Apps/hookfeed"
+        let integration = try XCTUnwrap(Integration.named("grokbot"))
+        let prompt = integration.setupPrompt(cliPath: path)
+        XCTAssertTrue(prompt.contains(IntegrationPrompts.mcp(cliPath: path)))
+        XCTAssertTrue(prompt.contains("config location and format are unverified"))
+        XCTAssertTrue(prompt.contains("URL plus /mcp"))
+        XCTAssertTrue(prompt.contains("Bearer "))
+        XCTAssertTrue(prompt.contains("--source grokbot"))
+        XCTAssertTrue(prompt.contains(IntegrationPrompts.rules(source: "grokbot")))
+        XCTAssertFalse(prompt.contains("~/.grok"))
+    }
     func testCursorJSONEscapingAndExactText() throws {
         let path = #"/Apps/Knight's \ "Test"/hookfeed"#
         XCTAssertEqual(IntegrationPrompts.cursorHooks(cliPath: path), #"""

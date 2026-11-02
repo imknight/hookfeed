@@ -95,6 +95,22 @@ public enum IntegrationPrompts {
         """
     }
 
+    public static func grokbotPrompt(cliPath: String) -> String {
+        """
+        Connect yourself to HookFeed, my Mac inbox for agent updates. Grok Bot's config location and format are unverified; this assumes your client supports MCP. Find its documented MCP configuration before editing anything, back it up, and preserve existing settings and servers.
+        1. On this Mac, add this generic stdio MCP server using your client's documented format:
+
+        \(mcp(cliPath: cliPath))
+
+        2. On another machine, ask me privately for a connection from HookFeed Settings → Remote. Use Streamable HTTP with the URL plus /mcp and an Authorization header of "Bearer " plus the token. Do not use this Mac's executable path remotely.
+        3. Reload MCP using your client's documented procedure. Call send_message with title "Grok Bot connected to HookFeed", kind "info", source "grokbot" and bot set to your name. Confirm the update appears in HookFeed.
+        4. If MCP is unavailable on this Mac, send through the CLI: \(ShellText.quote(cliPath)) send "Grok Bot connected to HookFeed" --source grokbot --bot "Grok Bot". Remote scripts can use the same send command with HOOKFEED_URL and HOOKFEED_TOKEN set privately.
+        5. Save these rules in your persistent agent instructions:
+
+        \(rules(source: "grokbot"))
+        """
+    }
+
     public static func codexRemote(url: String, token: String) -> String {
         """
         [mcp_servers.hookfeed]

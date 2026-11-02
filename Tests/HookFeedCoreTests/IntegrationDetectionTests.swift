@@ -9,6 +9,12 @@ final class IntegrationDetectionTests: XCTestCase {
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     }
     override func tearDownWithError() throws { try FileManager.default.removeItem(at: home) }
+    func testGrokBotOnlyDetectsExecutableWithoutAssumingConfigLocation() throws {
+        XCTAssertFalse(detect("grokbot").found)
+        let file = try executable("bin/grokbot")
+        XCTAssertEqual(detect("grokbot", path: file.deletingLastPathComponent().path).executable, file)
+        XCTAssertFalse(detect("grokbot").configDirectory)
+    }
     func testCursorExecutablesAndFallback() throws {
         for name in ["cursor-agent", "cursor"] {
             let file = try executable("bin/" + name)

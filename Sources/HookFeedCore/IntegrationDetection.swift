@@ -13,7 +13,7 @@ public enum IntegrationDetection {
     public static func detect(_ integration: Integration, home: URL, searchPath: String, fileManager: FileManager = .default,
                               fallbackDirectories: [String] = fallbackDirectories, applicationDirectories: [String] = ["/Applications", "~/Applications"]) -> Detection {
         var isDirectory: ObjCBool = false
-        var hasConfig = fileManager.fileExists(atPath: home.appendingPathComponent(integration.configDirectory).path, isDirectory: &isDirectory) && isDirectory.boolValue
+        var hasConfig = integration.configDirectory.map { fileManager.fileExists(atPath: home.appendingPathComponent($0).path, isDirectory: &isDirectory) && isDirectory.boolValue } ?? false
         if integration.id == "gemini-cli" {
             hasConfig = (try? home.appendingPathComponent(".gemini/settings.json").resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
         }

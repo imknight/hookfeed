@@ -16,7 +16,7 @@ public struct Integration: Identifiable, Sendable {
     public let summary: String
     public let promise: String
     public let route: Route
-    public let configDirectory: String
+    public let configDirectory: String?
     public let executable: String
     public var alternateExecutables: [String] = []
     public var applicationName: String? = nil
@@ -62,6 +62,12 @@ public struct Integration: Identifiable, Sendable {
                     remoteSnippet: .init(note: "Merge under mcp.servers in ~/.openclaw/openclaw.json on the OpenClaw host, start a new session, then save the rules from Settings › Integrations › OpenClaw.", text: { IntegrationPrompts.openclawRemote(url: $0, token: $1) }),
                     snippets: [.init(noun: "configuration", note: "This stdio configuration is for OpenClaw on this Mac. For remote delivery, create a connection in Settings → Remote and use its URL and bearer token on the OpenClaw host.", text: { IntegrationPrompts.openclaw(cliPath: $0) })],
                     prompt: { IntegrationPrompts.openclawPrompt(cliPath: $0) }),
+        Integration(id: "grokbot", name: "Grok Bot",
+                    summary: "Generic MCP setup; Grok Bot's config location and format are unverified. Copy the setup prompt for local stdio or use Settings → Remote for another machine.",
+                    promise: "Agent decides when to send", route: .mcp, configDirectory: nil, executable: "grokbot", rulesSource: "grokbot",
+                    remoteSnippet: .init(note: "Generic Streamable HTTP MCP setup. Use your Grok Bot client's documented config format and save the when-to-send rules with source grokbot.", text: { IntegrationPrompts.mcpRemote(url: $0, token: $1) }),
+                    snippets: [.init(noun: "MCP configuration", note: "Generic example; adapt to your client's documented MCP format.", text: { IntegrationPrompts.mcp(cliPath: $0) })],
+                    prompt: { IntegrationPrompts.grokbotPrompt(cliPath: $0) }),
         Integration(id: "antigravity", name: "Google Antigravity",
                     summary: "Merge into ~/.gemini/config/hooks.json. Stop reports completed runs and failures once background tasks finish. Permission and input requests are not reported.",
                     promise: "Completions + failures", route: .hooks(.antigravity), configDirectory: ".gemini/antigravity", executable: "agy", rulesSource: nil,

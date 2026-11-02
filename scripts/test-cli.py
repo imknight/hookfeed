@@ -60,17 +60,17 @@ def main():
         assert b"0.1.0" in invoke("--version").stdout
         assert b"send" in invoke("--help").stdout
         prompts = json.loads((FIXTURES / "setup-prompts.json").read_text())
-        for agent in ("hermes", "mcp", "claude-code", "codex", "openclaw", "antigravity", "gemini-cli", "cursor"):
+        for agent in ("hermes", "mcp", "claude-code", "codex", "openclaw", "grokbot", "antigravity", "gemini-cli", "cursor"):
             expected = prompts[agent].replace("/Applications/HookFeed.app/Contents/Helpers/hookfeed", binary)
             assert invoke("prompt", agent).stdout.decode() == expected + "\n"
             rules = invoke("prompt", agent, "--rules-only").stdout.decode()
             assert 'kind "completed"' in rules and "Back up" not in rules
-            if agent in ("hermes", "cursor", "openclaw"):
+            if agent in ("hermes", "cursor", "openclaw", "grokbot"):
                 assert f'Set source to "{agent}".' in rules
             else:
                 assert "Set source" not in rules
         assert 'source "hermes"' in invoke("prompt", "hermes").stdout.decode()
-        assert b"claude-code, codex, hermes, openclaw, antigravity, gemini-cli, cursor, mcp" in invoke("prompt", "bogus", status=2).stderr
+        assert b"claude-code, codex, hermes, openclaw, grokbot, antigravity, gemini-cli, cursor, mcp" in invoke("prompt", "bogus", status=2).stderr
         link = folder / "hookfeed link"
         link.symlink_to(binary)
         linked = subprocess.run([str(link), "prompt", "hermes"], capture_output=True, check=True, env=environment)
