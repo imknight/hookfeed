@@ -182,6 +182,7 @@ struct InboxThreadList: View {
                     }
                 }
                 .listStyle(.inset)
+                .transaction { $0.animation = nil; $0.disablesAnimations = true }
                 .onDeleteCommand { model.requestDeleteSelected() }
             }
         }
@@ -261,6 +262,7 @@ struct ThreadRow: View {
             }
         }
         .padding(.vertical, 9)
+        .frame(height: compact ? nil : 64)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(thread.kind.label): \(thread.latest.displayTitle), \(thread.latest.context), \(thread.latest.receivedAt.formatted(date: .abbreviated, time: .shortened)), \(thread.isUnread ? "unread" : "read"), \(thread.updateCount) updates")
     }
