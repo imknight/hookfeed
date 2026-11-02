@@ -14,6 +14,7 @@ struct HookFeedSettings: View {
     @State private var installedMCP: Integration?
     @State private var installStatus: String?
     @State private var installError: String?
+    @AppStorage(DockVisibility.key) private var showInDock = true
     var body: some View {
         TabView(selection: $model.settingsTab) {
             general.tabItem { Label("General", systemImage: "sun.max") }.tag(SettingsTab.general)
@@ -116,6 +117,8 @@ struct HookFeedSettings: View {
                 }
             }
             Section("Menu bar") {
+                Toggle("Show in Dock", isOn: $showInDock)
+                    .onChange(of: showInDock) { _, _ in DockVisibility.apply() }
                 Picker("Badge counts", selection: $model.badgeMode) {
                     ForEach(BadgeMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }

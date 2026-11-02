@@ -86,7 +86,7 @@ final class HookFeedAppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         RemoteAccessModel.shared.activate()
-        NSApp.setActivationPolicy(.regular)
+        DockVisibility.apply()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -103,6 +103,19 @@ final class HookFeedAppDelegate: NSObject, NSApplicationDelegate {
 enum SingleInstance {
     static func existingPID(in running: [Int32], current: Int32) -> Int32? {
         running.first { $0 != current }
+    }
+}
+
+enum DockVisibility {
+    static let key = "showInDock"
+
+    static func activationPolicy(defaults: UserDefaults = .standard) -> NSApplication.ActivationPolicy {
+        defaults.object(forKey: key) as? Bool == false ? .accessory : .regular
+    }
+
+    @MainActor
+    static func apply(defaults: UserDefaults = .standard) {
+        NSApp.setActivationPolicy(activationPolicy(defaults: defaults))
     }
 }
 

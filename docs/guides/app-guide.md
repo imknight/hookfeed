@@ -34,7 +34,7 @@ Thread details can open an existing project folder in your chosen editor, reveal
 
 ## Settings and local storage
 
-**General** controls notifications, menu bar badge counts, and the editor. Defaults are all-update notifications, sound off, and an attention-only badge. Enable notification permission explicitly; macOS settings and Focus govern delivery. Banners show the title and source while bodies remain in the inbox. Expand their actions to copy an available resume command, open an existing project folder in your editor (or Finder), or mark the thread read. Clicking the banner opens its thread. **Storage** shows message and thread counts and the database location. The normal store is `~/Library/Application Support/HookFeed/inbox.sqlite`. Sends persist while the app is closed. The menu bar offers a compact inbox. Deleting a thread permanently removes its updates after confirmation.
+**General** controls notifications, Dock visibility, menu bar badge counts, and the editor. Defaults are all-update notifications, sound off, and an attention-only badge. Enable notification permission explicitly; macOS settings and Focus govern delivery. Banners show the title and source while bodies remain in the inbox. Expand their actions to copy an available resume command, open an existing project folder in your editor (or Finder), or mark the thread read. Clicking the banner opens its thread. **Storage** shows message and thread counts and the database location. The normal store is `~/Library/Application Support/HookFeed/inbox.sqlite`. Sends persist while the app is closed. The menu bar offers a compact inbox. Deleting a thread permanently removes its updates after confirmation.
 
 See the [README](../../README.md) and [setup instructions](../../SETUP.md) for building and configuring HookFeed.
 
@@ -107,6 +107,10 @@ hookfeed --version
 ```
 
 The version should be `0.1.0`. Installation is for the current user only.
+
+To run from the menu bar, turn off **Settings → General → Show in Dock**. The
+choice is saved and applies immediately. Use **Open Inbox** in the menu bar to
+open the main window; it does not bring the Dock icon back.
 
 ## Remote access
 
