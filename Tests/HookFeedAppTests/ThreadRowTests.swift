@@ -6,6 +6,21 @@ import XCTest
 
 final class ThreadRowTests: XCTestCase {
     @MainActor
+    func testRowHeightScalesForAccessibilityAndStaysStableWithBadge() throws {
+        let store = try InboxStore(path: ":memory:")
+        _ = try store.send(.init(title: "First", threadKey: "first"))
+        let first = try XCTUnwrap(MessageThread.group(try store.messages()).first)
+        let regular = NSHostingView(rootView: ThreadRow(thread: first).frame(width: 360).dynamicTypeSize(.large))
+        let accessible = NSHostingView(rootView: ThreadRow(thread: first).frame(width: 360).dynamicTypeSize(.accessibility3).font(.system(size: 40)))
+        let height = accessible.fittingSize.height
+        XCTAssertGreaterThan(height, regular.fittingSize.height)
+        _ = try store.send(.init(title: "Updated", threadKey: "first"))
+        let updated = try XCTUnwrap(MessageThread.group(try store.messages()).first)
+        accessible.rootView = ThreadRow(thread: updated).frame(width: 360).dynamicTypeSize(.accessibility3).font(.system(size: 40))
+        XCTAssertEqual(accessible.fittingSize.height, height)
+    }
+
+    @MainActor
     func testRowHeightStaysFixedWhenExistingThreadMovesToTop() throws {
         let store = try InboxStore(path: ":memory:")
         _ = try store.send(.init(title: "First", threadKey: "first"))

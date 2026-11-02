@@ -241,6 +241,7 @@ struct SidebarRow: View {
 struct ThreadRow: View {
     let thread: MessageThread
     var compact = false
+    @ScaledMetric(relativeTo: .body) private var rowHeight = 64
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Circle().fill(thread.isUnread ? Color.accentColor : .clear).frame(width: 6, height: 6).padding(.top, 7)
@@ -254,15 +255,17 @@ struct ThreadRow: View {
                 HStack {
                     Text(thread.latest.context).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     Spacer(minLength: 4)
-                    if thread.updateCount > 1 {
-                        Text("\(thread.updateCount) updates").font(.caption2).foregroundStyle(.secondary)
+                    if !compact || thread.updateCount > 1 {
+                        Text("\(max(2, thread.updateCount)) updates").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                             .padding(.horizontal, 6).padding(.vertical, 2).background(.quaternary, in: Capsule())
+                            .frame(width: thread.updateCount > 1 ? nil : 0)
+                            .opacity(thread.updateCount > 1 ? 1 : 0)
                     }
                 }
             }
         }
         .padding(.vertical, 9)
-        .frame(height: compact ? nil : 64)
+        .frame(minHeight: compact ? nil : rowHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(thread.kind.label): \(thread.latest.displayTitle), \(thread.latest.context), \(thread.latest.receivedAt.formatted(date: .abbreviated, time: .shortened)), \(thread.isUnread ? "unread" : "read"), \(thread.updateCount) updates")
     }
