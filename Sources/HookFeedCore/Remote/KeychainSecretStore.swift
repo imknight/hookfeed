@@ -5,13 +5,19 @@ public struct KeychainSecretStore: RemoteSecretStore {
     public static var service: String { ProcessInfo.processInfo.environment["HOOKFEED_KEYCHAIN_SERVICE"] ?? "app.hookfeed.remote" }
     let service: String
     private let allowInteraction: Bool
+    public let helperPath: String?
     #if DEBUG
     private var testKeychain: SecKeychain?
-    private var testHelperPath: String?
     #endif
-    public init(service: String = Self.service, allowInteraction: Bool = true) {
+    public init(service: String = Self.service, allowInteraction: Bool = true, helperPath: String? = Self.bundledHelperPath) {
         self.service = service
         self.allowInteraction = allowInteraction
+        self.helperPath = helperPath
+    }
+
+    public static var bundledHelperPath: String? {
+        let path = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hookfeed").path
+        return FileManager.default.isExecutableFile(atPath: path) ? path : nil
     }
 
     private var query: [String: Any] {
@@ -46,9 +52,9 @@ public struct KeychainSecretStore: RemoteSecretStore {
             if let testKeychain {
                 entry.removeValue(forKey: kSecMatchSearchList as String)
                 entry[kSecUseKeychain as String] = testKeychain
-                if let testHelperPath { entry[kSecAttrAccess as String] = try helperAccess(at: testHelperPath) }
             }
             #endif
+            if let helperPath { entry[kSecAttrAccess as String] = try helperAccess(at: helperPath) }
             let added = SecItemAdd(entry as CFDictionary, nil)
             guard added == errSecSuccess else { throw KeychainFailure(operation: "create", status: added) }
         } else if status != errSecSuccess { throw KeychainFailure(operation: "update", status: status) }
@@ -82,20 +88,18 @@ public struct KeychainSecretStore: RemoteSecretStore {
 
     #if DEBUG
     // Called only after the debug harness verifies temporary HOME/store and a UUID service.
-    public static func isolatedTestStore(home: String, service: String, helperPath: String? = nil) throws -> KeychainSecretStore {
+    public static func isolatedTestStore(home: String, service: String, helperPath: String? = nil, password: String = UUID().uuidString) throws -> KeychainSecretStore {
         let path = URL(fileURLWithPath: home).appendingPathComponent("remote-tests.keychain-db").path
         var keychain: SecKeychain?
         let status: OSStatus
         if FileManager.default.fileExists(atPath: path) {
             status = SecKeychainOpen(path, &keychain)
         } else {
-            let password = UUID().uuidString
             status = password.withCString { SecKeychainCreate(path, UInt32(password.utf8.count), $0, false, nil, &keychain) }
         }
         guard status == errSecSuccess, let keychain else { throw KeychainFailure(operation: "open test keychain for", status: status) }
-        var store = KeychainSecretStore(service: service)
+        var store = KeychainSecretStore(service: service, helperPath: helperPath)
         store.testKeychain = keychain
-        store.testHelperPath = helperPath
         return store
     }
     #endif

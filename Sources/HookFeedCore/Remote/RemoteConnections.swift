@@ -21,11 +21,13 @@ public final class RemoteConnections: @unchecked Sendable {
     private var connections: [RemoteConnection]
     private let lock = NSLock()
     private let coordinationPath: String?
+    private var version: UInt64?
 
     public init(store: any RemoteSecretStore, coordinationPath: String? = nil) throws {
         self.coordinationPath = coordinationPath
         self.store = store
-        connections = try store.load()
+        connections = []
+        try synchronized { }
     }
 
     public var all: [RemoteConnection] {
@@ -45,7 +47,7 @@ public final class RemoteConnections: @unchecked Sendable {
             .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         let connection = RemoteConnection(id: UUID().uuidString.lowercased(), name: name, route: route,
                                           tokenHash: Data(SHA256.hash(data: Data(token.utf8))), createdAt: now)
-        return try synchronized {
+        return try synchronized(writing: true) {
             let updated = connections + [connection]
             try store.save(updated)
             connections = updated
@@ -65,7 +67,7 @@ public final class RemoteConnections: @unchecked Sendable {
     }
 
     public func revoke(id: String) throws {
-        try synchronized {
+        try synchronized(writing: true) {
             let updated = connections.filter { $0.id != id }
             try store.save(updated)
             connections = updated
@@ -74,7 +76,7 @@ public final class RemoteConnections: @unchecked Sendable {
 
     public func markUsed(id: String, now: Date) {
         // A metadata write failure must not turn an already stored message into a failed send.
-        try? synchronized {
+        try? synchronized(writing: true) {
             guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
             var updated = connections
             updated[index].lastUsedAt = now
@@ -83,12 +85,22 @@ public final class RemoteConnections: @unchecked Sendable {
         }
     }
 
-    private func synchronized<T>(_ action: () throws -> T) throws -> T {
+    private func synchronized<T>(writing: Bool = false, _ action: () throws -> T) throws -> T {
         lock.lock(); defer { lock.unlock() }
         let ownership = try coordinationPath.map { try RemoteFileLock(path: $0, wait: true) }
         return try withExtendedLifetime(ownership) {
-            if coordinationPath != nil { connections = try store.load() }
-            return try action()
+            let storedVersion = try ownership?.version
+            if ownership == nil && version == nil || ownership != nil && version != storedVersion {
+                connections = try store.load()
+                version = storedVersion ?? 0
+            }
+            if writing, let ownership {
+                try ownership.bumpVersion()
+                version = nil
+            }
+            let result = try action()
+            if writing { version = try ownership?.version ?? 0 }
+            return result
         }
     }
 }

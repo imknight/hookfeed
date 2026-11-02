@@ -92,9 +92,9 @@ public final class RemoteServer: @unchecked Sendable {
         return .hostPort(host: .ipv4(ipv4), port: port)
     }
 
-    public func start(addresses: [String], port: Int, reachAddresses: ReachAddresses = ReachAddresses(tailscaleIP: nil, tailscaleHost: nil), state: @escaping (String?) -> Void, didStore: @escaping () -> Void) throws {
+    public func start(addresses: [String], port: Int, reachAddresses: ReachAddresses = ReachAddresses(tailscaleIP: nil, tailscaleHost: nil), ownership: RemoteFileLock? = nil, state: @escaping (String?) -> Void, didStore: @escaping () -> Void) throws {
         stop()
-        let ownership = try lockPath.map { try RemoteFileLock(path: $0) }
+        let ownership = try ownership ?? lockPath.map { try RemoteFileLock(path: $0) }
         let endpoints = try addresses.map { try Self.endpoint(address: $0, port: port) }
         let pending = try zip(addresses, endpoints).filter { $0.0 == "127.0.0.1" }.map { _, endpoint -> NWListener in
             let parameters = NWParameters.tcp

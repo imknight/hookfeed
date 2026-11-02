@@ -16,6 +16,22 @@ public final class RemoteFileLock {
 
     deinit { Darwin.close(descriptor) }
 
+    var version: UInt64 {
+        get throws {
+            var value: UInt64 = 0
+            let count = pread(descriptor, &value, MemoryLayout<UInt64>.size, 0)
+            guard count == 0 || count == MemoryLayout<UInt64>.size else {
+                throw POSIXError(count < 0 ? POSIXErrorCode(rawValue: errno)! : .EIO)
+            }
+            return value
+        }
+    }
+
+    func bumpVersion() throws {
+        var value = try version + 1
+        guard pwrite(descriptor, &value, MemoryLayout<UInt64>.size, 0) == MemoryLayout<UInt64>.size else { throw POSIXError(.EIO) }
+    }
+
     public static func acquire(path: String, timeout: TimeInterval) async throws -> RemoteFileLock {
         let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
         var delay = 0.05

@@ -3,6 +3,7 @@
 No real inbox, config, Keychain item, Tailscale listener or clipboard is touched.
 """
 import base64
+import fcntl
 import hashlib
 import http.client
 import json
@@ -33,9 +34,10 @@ def main():
     initial_preferences = preference_digest()
     with tempfile.TemporaryDirectory(prefix='hookfeed-remote-') as home:
         service = 'app.hookfeed.test.' + str(uuid.uuid4())
+        keychain_password = uuid.uuid4().hex
         env = {k:v for k,v in os.environ.items() if not k.startswith('HOOKFEED_')}
         env.update(HOME=home, CFFIXED_USER_HOME=home, ZDOTDIR=home, HOOKFEED_STORE_PATH=home+'/server.sqlite',
-                   HOOKFEED_LOG_PATH=home+'/hook.log', HOOKFEED_KEYCHAIN_SERVICE=service)
+                   HOOKFEED_LOG_PATH=home+'/hook.log', HOOKFEED_KEYCHAIN_SERVICE=service, HOOKFEED_TEST_KEYCHAIN_PASSWORD=keychain_password)
         # Always build both binaries from this checkout. Never select an old .build-cli product.
         subprocess.run(['./scripts/build-app.sh', '--debug'], cwd=ROOT, env=env, check=True)
         test_app = Path(home) / 'HookFeed.app'
@@ -300,7 +302,14 @@ def main():
                 socket.create_connection(('127.0.0.1', port), timeout=1).close()
                 raise AssertionError('Disabled listener still accepts connections')
             except ConnectionRefusedError: pass
-            control('enable', 'ready')
+            with open(env['HOOKFEED_STORE_PATH']+'.remote.lock', 'r+b') as ownership:
+                fcntl.flock(ownership, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                release = threading.Timer(0.5, lambda: fcntl.flock(ownership, fcntl.LOCK_UN))
+                release.start()
+                start = time.monotonic()
+                control('enable', 'ready')
+                release.join()
+                assert time.monotonic()-start >= 0.45, 'App did not wait for helper ownership to release'
             assert mcp(list_tools, 'Bearer '+token, mcp_session)[0] == 404
             persisted = json.loads(control('inspect', 'connections')['stored'])
             assert token not in json.dumps(persisted), 'Raw token persisted in test Keychain'
@@ -357,11 +366,19 @@ def main():
             assert status == 200 and not result['result'].get('isError', False)
             assert rows()[0]['title'] == 'Received without UI'
             assert request(auth='Bearer '+token)[0] == 401
-            # The running helper must observe a token revoked by a separate UI process immediately.
-            launch(); event('disabled')
-            control('revoke '+background['id'], 'revoked')
+            # Recreating the item uses the same helper ACL path as release builds.
+            subprocess.run(['/usr/bin/security', 'delete-generic-password', '-s', service, '-a', ACCOUNT,
+                            home+'/remote-tests.keychain-db'], env=env, check=True, capture_output=True)
+            launch('--debug-remote-create', 'Recreated connection')
+            recreated = event('created')
+            event('disabled')
+            assert request(auth='Bearer '+recreated['token'])[0] == 201
             assert request(auth='Bearer '+background['token'])[0] == 401
-            assert mcp(list_tools, 'Bearer '+background['token'], session)[0] == 401
+            session = initialize_mcp(recreated['token'])
+            # The running helper must observe a token revoked by a separate UI process immediately.
+            control('revoke '+recreated['id'], 'revoked')
+            assert request(auth='Bearer '+recreated['token'])[0] == 401
+            assert mcp(list_tools, 'Bearer '+recreated['token'], session)[0] == 401
             control('quit', 'stopped'); app.wait(timeout=5); app = None
             subprocess.run(['/usr/bin/defaults', 'write', service+'.settings', 'enabled', '-bool', 'NO'], env=env, check=True)
             deadline = time.monotonic() + 8
@@ -372,7 +389,40 @@ def main():
                 time.sleep(0.05)
             assert helper.poll() is None, 'Disabled managed helper should stay available'
             helper.terminate(); helper.wait(timeout=5); helper = None
-            print('Verified headless HTTP/MCP delivery, listener exclusion, and cross-process revocation.', flush=True)
+            # A managed receiver must stay alive and retry a locked Keychain, then recover.
+            keychain = home+'/remote-tests.keychain-db'
+            subprocess.run(['/usr/bin/security', 'lock-keychain', keychain], env=env, check=True, capture_output=True)
+            subprocess.run(['/usr/bin/defaults', 'write', service+'.settings', 'enabled', '-bool', 'YES'], env=env, check=True)
+            offset = os.lseek(errors.fileno(), 0, os.SEEK_END)
+            helper = subprocess.Popen([binary, 'serve', '--managed', '--port', str(port), '--test-keychain'], env=env,
+                                      stdout=subprocess.DEVNULL, stderr=errors)
+            deadline = time.monotonic() + 5
+            while os.pread(errors.fileno(), 65536, offset).count(b'Waiting for Keychain access:') < 2:
+                assert helper.poll() is None, 'Managed receiver exited on locked Keychain'
+                assert time.monotonic() < deadline, 'Managed receiver did not retry Keychain access'
+                time.sleep(0.05)
+            subprocess.run(['/usr/bin/security', 'unlock-keychain', '-p', keychain_password, keychain], env=env,
+                           check=True, capture_output=True)
+            deadline = time.monotonic() + 8
+            while True:
+                assert helper.poll() is None, 'Managed receiver exited during Keychain recovery'
+                try:
+                    if request(method='GET', path='/v1/health')[0] == 200: break
+                except (OSError, http.client.HTTPException): pass
+                assert time.monotonic() < deadline, 'Managed receiver did not recover after unlock'
+                time.sleep(0.05)
+            helper.terminate(); helper.wait(timeout=5); helper = None
+            subprocess.run(['/usr/bin/defaults', 'write', service+'.settings', 'enabled', '-bool', 'NO'], env=env, check=True)
+            shell = Path(home) / 'login-shell'
+            marker = Path(home) / 'shell-was-run'
+            shell.write_text('#!/bin/sh\ntouch "'+str(marker)+'"\nprintf /usr/bin:/bin\n')
+            shell.chmod(0o700)
+            helper = subprocess.Popen([binary, 'serve', '--managed', '--port', str(port)], env=env | {'SHELL': str(shell)},
+                                      stdout=subprocess.DEVNULL, stderr=errors)
+            time.sleep(0.8)
+            assert helper.poll() is None and not marker.exists(), 'Disabled receiver spawned the login shell'
+            helper.terminate(); helper.wait(timeout=5); helper = None
+            print('Verified headless delivery, delayed listener takeover, revocation, Keychain retry/recovery, and disabled discovery.', flush=True)
             with socket.socket() as dead:
                 dead.bind(('127.0.0.1', 0)); dead_url = f'http://127.0.0.1:{dead.getsockname()[1]}'
                 start = time.monotonic()

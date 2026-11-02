@@ -18,6 +18,8 @@ final class RemoteAccessModel: ObservableObject {
     @Published private(set) var backgroundStatus: SMAppService.Status = .notRegistered
     @Published private(set) var changingBackground = false
     private var backgroundMonitor: Task<Void, Never>?
+    private var listenerTask: Task<Void, Never>?
+    private var backgroundHealth = BackgroundHealth()
     private var backgroundService: SMAppService { .agent(plistName: "app.hookfeed.receiver.plist") }
     private var registry: RemoteConnections?
     private var server: RemoteServer?
@@ -63,13 +65,15 @@ final class RemoteAccessModel: ObservableObject {
             }
             #endif
             let store = try InboxStore()
-            let registry = try RemoteConnections(store: KeychainSecretStore(), coordinationPath: RemotePreferences.connectionsLockPath)
+            let secrets = KeychainSecretStore()
+            backgroundStatus = backgroundService.status
+            if backgroundEnabled, let helper = secrets.helperPath { try secrets.authorizeHelper(at: helper) }
+            let registry = try RemoteConnections(store: secrets, coordinationPath: RemotePreferences.connectionsLockPath)
             self.registry = registry
             connections = registry.all
             preferences = UserDefaults(suiteName: RemotePreferences.domain)
             enabled = preferences?.bool(forKey: "enabled") ?? false
             server = RemoteServer(connections: registry, store: store, lockPath: RemotePreferences.listenerLockPath)
-            backgroundStatus = backgroundService.status
             if enabled { restart() }
             Task { await refreshAddresses() }
             backgroundMonitor = Task { [weak self] in
@@ -133,12 +137,15 @@ final class RemoteAccessModel: ObservableObject {
         let response = try? await URLSession.shared.data(for: request)
         guard backgroundStatus == .enabled, enabled else { return }
         listening = (response?.1 as? HTTPURLResponse)?.statusCode == 200
-        error = listening ? nil : "Background receiver is not responding. Check Login Items and Keychain access, or turn off background receiving to use the app listener."
+        let failed = backgroundHealth.record(success: listening, now: now())
+        error = failed ? "Background receiver is not responding. Check Login Items and Keychain access, or turn off background receiving to use the app listener." : nil
         connections = registry?.all ?? []
     }
 
     func stop() {
         generation += 1
+        listenerTask?.cancel()
+        listenerTask = nil
         server?.stop()
         listening = false
     }
@@ -192,22 +199,34 @@ final class RemoteAccessModel: ObservableObject {
 
     private func restart() {
         stop()
-        guard enabled, backgroundStatus != .enabled, let server else { return }
         error = nil
+        backgroundHealth.reset(now: now())
+        guard enabled, backgroundStatus != .enabled, let server else { return }
         let current = generation
-        do {
-            try server.start(addresses: bindAddresses, port: port, reachAddresses: addresses, state: { [weak self] error in
-                guard let self, current == self.generation, self.enabled else { return }
-                self.error = error
-                self.listening = error == nil
+        listenerTask = Task { [weak self] in
+            do {
+                let ownership = try await RemoteFileLock.acquire(path: RemotePreferences.listenerLockPath, timeout: 3)
+                guard let self, !Task.isCancelled, current == self.generation, self.enabled else { return }
+                try server.start(addresses: self.bindAddresses, port: self.port, reachAddresses: self.addresses, ownership: ownership, state: { [weak self] error in
+                    guard let self, current == self.generation, self.enabled else { return }
+                    self.error = error
+                    self.listening = error == nil
+                    #if DEBUG
+                    if self.debugMode { self.debugEvent(error == nil ? "ready" : "failed") }
+                    #endif
+                }, didStore: { [weak self] in
+                    guard let self else { return }
+                    self.connections = self.registry?.all ?? []
+                })
+            } catch is CancellationError { }
+            catch {
+                guard let self, current == self.generation else { return }
+                self.error = error.localizedDescription
                 #if DEBUG
-                if self.debugMode { self.debugEvent(error == nil ? "ready" : "failed") }
+                if self.debugMode { self.debugEvent("failed", fields: ["error": error.localizedDescription]) }
                 #endif
-            }, didStore: { [weak self] in
-                guard let self else { return }
-                self.connections = self.registry?.all ?? []
-            })
-        } catch { self.error = error.localizedDescription }
+            }
+        }
     }
 
     #if DEBUG
@@ -236,7 +255,7 @@ final class RemoteAccessModel: ObservableObject {
         debugMode = true
         addresses = ReachAddresses(tailscaleIP: nil, tailscaleHost: nil)
         tailscaleReason = "Tailscale is disabled in the loopback debug harness."
-        let secrets = try KeychainSecretStore.isolatedTestStore(home: home, service: service, helperPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hookfeed").path)
+        let secrets = try KeychainSecretStore.isolatedTestStore(home: home, service: service, helperPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hookfeed").path, password: env["HOOKFEED_TEST_KEYCHAIN_PASSWORD"] ?? UUID().uuidString)
         debugSecrets = secrets
         let store = try InboxStore(path: storePath)
         let registry = try RemoteConnections(store: secrets, coordinationPath: RemotePreferences.connectionsLockPath)

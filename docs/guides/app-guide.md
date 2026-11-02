@@ -123,7 +123,8 @@ without the app UI. With this option off, HookFeed must stay open.
 
 The app and helper share a listener lock so only one owns port 47321. Switching
 remote access off closes the app listener immediately; the managed helper picks
-up the setting within two seconds. Quitting the app leaves an enabled helper
+up the setting within a quarter second. Listener takeover waits up to three seconds
+for the helper to release its lock. Quitting the app leaves an enabled helper
 running. Background storage does not display notification banners while the UI
 is closed; open the inbox to read the stored updates.
 
@@ -131,8 +132,13 @@ Enabling the helper authorizes the bundled CLI in the existing Keychain item's
 access list. macOS may ask you to allow this change. Token hashes stay in
 Keychain; no raw tokens are copied to files or launch arguments. The helper
 fails closed without interactive Keychain prompts if access is denied or the
-Keychain is locked. Re-enable background receiving from the installed, signed
-app to renew authorization after replacing an ad-hoc build. This is a per-user
+Keychain is locked. A managed helper stays alive and retries Keychain loading
+with a backoff of up to 30 seconds. The app renews helper authorization at launch
+when background receiving is registered, including after an ad-hoc build update.
+New or recreated Keychain items include helper access. Coordinated token changes
+invalidate the other process's cached connections immediately; unchanged reads
+do not reload Keychain. Health checks allow startup time before reporting a
+receiver failure. This is a per-user
 LaunchAgent, so reception requires a logged-in session and an awake Mac.
 
 For manual foreground operation, run `hookfeed serve` (or `hookfeed serve --port
