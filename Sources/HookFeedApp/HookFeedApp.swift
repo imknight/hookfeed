@@ -76,6 +76,15 @@ struct HookFeedApp: App {
 
 final class HookFeedAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            if let pid = SingleInstance.existingPID(in: running.map(\.processIdentifier), current: ProcessInfo.processInfo.processIdentifier),
+               let existing = running.first(where: { $0.processIdentifier == pid }) {
+                existing.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                NSApp.terminate(nil)
+                return
+            }
+        }
         RemoteAccessModel.shared.activate()
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
@@ -88,6 +97,12 @@ final class HookFeedAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { AppNavigation.openInbox() }
         return true
+    }
+}
+
+enum SingleInstance {
+    static func existingPID(in running: [Int32], current: Int32) -> Int32? {
+        running.first { $0 != current }
     }
 }
 
