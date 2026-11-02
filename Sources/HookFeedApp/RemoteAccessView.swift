@@ -8,6 +8,8 @@ struct RemoteAccessView: View {
     @State private var createdToken: String?
     @State private var createdURL: String = ""
     @State private var creationError: String?
+    @State private var showingTailscaleSetup = false
+    @State private var showingTailscaleReset = false
 
     var body: some View {
         ScrollView {
@@ -35,9 +37,13 @@ struct RemoteAccessView: View {
                         routeRow(choice)
                     }
                     if let _ = model.addresses.baseURL(for: .tailscaleHTTPS, port: model.port) {
-                        Text("For Tailscale HTTPS, run this yourself on this Mac:").font(.caption).foregroundStyle(.secondary)
                         CopyableCode(text: "tailscale serve --bg --https=443 http://127.0.0.1:\(model.port)")
+                        HStack {
+                            Button("Set up Tailscale HTTPS…") { showingTailscaleSetup = true }
+                            Button("Reset Tailscale Serve…", role: .destructive) { showingTailscaleReset = true }
+                        }.disabled(model.configuringTailscale)
                     }
+                    if let result = model.tailscaleResult { Text(result).font(.caption).textSelection(.enabled) }
                 }
                 Divider()
                 VStack(alignment: .leading, spacing: 10) {
@@ -68,6 +74,18 @@ struct RemoteAccessView: View {
                     }
                 }
             }.padding(24)
+        }
+        .alert("Set up Tailscale HTTPS?", isPresented: $showingTailscaleSetup) {
+            Button("Cancel", role: .cancel) { }
+            Button("Set up") { Task { await model.configureTailscale(reset: false) } }
+        } message: {
+            Text("This changes this Mac's Tailscale Serve HTTPS mapping on port 443 to HookFeed. It may replace an existing mapping. Tailscale may ask you to enable HTTPS for your tailnet.")
+        }
+        .alert("Reset Tailscale Serve?", isPresented: $showingTailscaleReset) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) { Task { await model.configureTailscale(reset: true) } }
+        } message: {
+            Text("This runs tailscale serve reset and removes ALL Serve mappings on this Mac, including mappings for other apps.")
         }
         .sheet(isPresented: Binding(get: { createdToken != nil }, set: { if !$0 { createdToken = nil } })) {
             if let token = createdToken {

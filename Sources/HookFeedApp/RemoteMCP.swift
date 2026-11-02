@@ -55,6 +55,7 @@ final class RemoteMCP: @unchecked Sendable {
                 origins.append(url.absoluteString)
             }
         }
+        if let host = addresses.baseURL(for: .tailscaleHTTPS, port: port)?.host { hosts.append(host + ":*") }
         validation = StandardValidationPipeline(validators: [
             OriginValidator(allowedHosts: hosts, allowedOrigins: origins),
             AcceptHeaderValidator(mode: .sseRequired), ContentTypeValidator(),

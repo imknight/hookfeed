@@ -163,6 +163,17 @@ final class RemoteMCPTests: XCTestCase {
         let token = try connections.create(name: "Test", route: .thisMachine, now: Date()).token
         let remote = RemoteMCP(connections: connections, store: try InboxStore(path: ":memory:"), port: 47321,
                                addresses: ReachAddresses(tailscaleIP: "100.101.2.3", tailscaleHost: "mac.tail.ts.net"), didStore: {})
+        for host in ["mac.tail.ts.net:47322", "mac.tail.ts.net:8443"] {
+            let reply = await remote.handle(try request(initialize, token: token, headers: ["Host": host]))
+            XCTAssertEqual(reply.response.statusCode, 200)
+            if reply.response.statusCode == 200 { _ = try await consume(reply) }
+        }
+        for host in ["localhost:47322", "127.0.0.1:8443", "other.tail.ts.net:47322", "mac.tail.ts.net.evil:47322", "mac.tail.ts.net:abc"] {
+            let reply = await remote.handle(try request(initialize, token: token, headers: ["Host": host]))
+            XCTAssertEqual(reply.response.statusCode, 421)
+        }
+        let forwardedOrigin = await remote.handle(try request(initialize, token: token, headers: ["Host": "mac.tail.ts.net:47322", "Origin": "http://mac.tail.ts.net:47322"]))
+        XCTAssertEqual(forwardedOrigin.response.statusCode, 403)
         for (host, origin) in [("127.0.0.1:47321", "http://127.0.0.1:47321"),
                                ("100.101.2.3:47321", "http://100.101.2.3:47321"), ("mac.tail.ts.net", "https://mac.tail.ts.net")] {
             let reply = await remote.handle(try request(initialize, token: token, headers: ["Host": host, "Origin": origin]))

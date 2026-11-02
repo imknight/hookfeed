@@ -12,6 +12,8 @@ final class RemoteAccessModel: ObservableObject {
     @Published private(set) var tailscaleReason: String? = "Checking Tailscale…"
     @Published private(set) var error: String?
     @Published private(set) var refreshing = false
+    @Published private(set) var configuringTailscale = false
+    @Published private(set) var tailscaleResult: String?
     private var registry: RemoteConnections?
     private var server: RemoteServer?
     private var preferences: UserDefaults?
@@ -110,12 +112,26 @@ final class RemoteAccessModel: ObservableObject {
         #endif
         guard !refreshing else { return }
         refreshing = true
-        let status = await Task.detached { TailscaleStatus.detect() }.value
+        let status = await TailscaleStatus.detect()
         refreshing = false
         let changed = addresses != status.addresses
         addresses = status.addresses
         tailscaleReason = status.reason
         if changed, enabled { restart() }
+    }
+
+    func configureTailscale(reset: Bool) async {
+        guard !configuringTailscale else { return }
+        configuringTailscale = true
+        defer { configuringTailscale = false }
+        do {
+            guard let executable = await TailscaleStatus.executable() else { throw ConfigurationError("Tailscale CLI not found.") }
+            let result = try await ProcessCommandRunner(environmentPath: ProcessInfo.processInfo.environment["PATH"] ?? "")
+                .run(executable, TailscaleStatus.serveArguments(port: port, reset: reset), timeout: 30)
+            let output = (result.stdout + "\n" + result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+            tailscaleResult = "\(result.status == 0 ? "Succeeded" : "Failed (exit \(result.status))")\(output.isEmpty ? "" : ":\n" + output)"
+            await refreshAddresses()
+        } catch { tailscaleResult = error.localizedDescription }
     }
 
     private func restart() {
