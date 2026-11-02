@@ -140,7 +140,15 @@ enum DockVisibility {
 
     @MainActor
     static func apply(defaults: UserDefaults = .standard) {
-        NSApp.setActivationPolicy(activationPolicy(defaults: defaults))
+        let policy = activationPolicy(defaults: defaults)
+        guard NSApp.activationPolicy() != policy else { return }
+        let wasActive = NSApp.isActive
+        let keyWindow = NSApp.keyWindow
+        NSApp.setActivationPolicy(policy)
+        if wasActive {
+            NSApp.activate(ignoringOtherApps: true)
+            keyWindow?.makeKeyAndOrderFront(nil)
+        }
     }
 }
 
