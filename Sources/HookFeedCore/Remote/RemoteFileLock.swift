@@ -15,4 +15,19 @@ public final class RemoteFileLock {
     }
 
     deinit { Darwin.close(descriptor) }
+
+    public static func acquire(path: String, timeout: TimeInterval) async throws -> RemoteFileLock {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+        var delay = 0.05
+        while true {
+            try Task.checkCancellation()
+            do { return try RemoteFileLock(path: path) }
+            catch let error as POSIXError where error.code == .EWOULDBLOCK {
+                let remaining = ContinuousClock.now.duration(to: deadline)
+                guard remaining > .zero else { throw error }
+                try await Task.sleep(for: min(.seconds(delay), remaining))
+                delay = min(delay * 2, 0.2)
+            }
+        }
+    }
 }

@@ -74,23 +74,45 @@ struct HookFeedApp: App {
     }
 }
 
+@MainActor
 final class HookFeedAppDelegate: NSObject, NSApplicationDelegate {
+    private var instanceLock: RemoteFileLock?
+    private var launchTask: Task<Void, Never>?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let bundleID = Bundle.main.bundleIdentifier {
-            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            if let pid = SingleInstance.existingPID(in: running.map(\.processIdentifier), current: ProcessInfo.processInfo.processIdentifier),
-               let existing = running.first(where: { $0.processIdentifier == pid }) {
-                existing.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        launchTask = Task { @MainActor in
+            let path = SingleInstance.lockPath
+            do {
+                try FileManager.default.createDirectory(at: URL(fileURLWithPath: path).deletingLastPathComponent(), withIntermediateDirectories: true)
+                instanceLock = try await RemoteFileLock.acquire(path: path, timeout: 3)
+                try Task.checkCancellation()
+                DistributedNotificationCenter.default().addObserver(self, selector: #selector(openInbox), name: SingleInstance.openInbox, object: path)
+                RemoteAccessModel.shared.activate()
+                DockVisibility.apply()
+                NSApp.activate(ignoringOtherApps: true)
+            } catch is CancellationError { }
+            catch {
+                if let error = error as? POSIXError, error.code == .EWOULDBLOCK {
+                    DistributedNotificationCenter.default().postNotificationName(SingleInstance.openInbox, object: path, userInfo: nil, deliverImmediately: true)
+                    if let bundleID = Bundle.main.bundleIdentifier {
+                        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                        let pid = SingleInstance.existingPID(in: running.map { ($0.processIdentifier, $0.isTerminated) }, current: ProcessInfo.processInfo.processIdentifier)
+                        running.first { $0.processIdentifier == pid }?.activate(options: [.activateAllWindows])
+                    }
+                } else { NSLog("Could not acquire HookFeed instance lock: %@", error.localizedDescription) }
                 NSApp.terminate(nil)
-                return
             }
         }
-        RemoteAccessModel.shared.activate()
-        DockVisibility.apply()
-        NSApp.activate(ignoringOtherApps: true)
     }
 
-    func applicationWillTerminate(_ notification: Notification) { RemoteAccessModel.shared.stop() }
+    @objc func openInbox(_ notification: Notification) { AppNavigation.openInbox() }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        launchTask?.cancel()
+        DistributedNotificationCenter.default().removeObserver(self)
+        if instanceLock != nil { RemoteAccessModel.shared.stop() }
+        instanceLock = nil
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
@@ -101,8 +123,11 @@ final class HookFeedAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 enum SingleInstance {
-    static func existingPID(in running: [Int32], current: Int32) -> Int32? {
-        running.first { $0 != current }
+    static let openInbox = Notification.Name("app.hookfeed.open-inbox")
+    static var lockPath: String { InboxStore.defaultPath + ".app-instance.lock" }
+
+    static func existingPID(in running: [(pid: Int32, terminated: Bool)], current: Int32) -> Int32? {
+        running.first { $0.pid != current && !$0.terminated }?.pid
     }
 }
 
