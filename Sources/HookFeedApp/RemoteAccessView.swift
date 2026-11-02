@@ -1,4 +1,5 @@
 import HookFeedCore
+import ServiceManagement
 import SwiftUI
 
 struct RemoteAccessView: View {
@@ -24,7 +25,16 @@ struct RemoteAccessView: View {
                     Toggle("Enable remote access", isOn: Binding(get: { model.enabled }, set: model.setEnabled))
                         .toggleStyle(.switch).labelsHidden().accessibilityLabel("Enable remote access")
                 }
-                Text("HookFeed must stay open to receive updates. Connections can only send; they cannot read your inbox.")
+                Toggle("Receive while HookFeed is closed", isOn: Binding(get: { model.backgroundEnabled }, set: { value in
+                    Task { await model.setBackgroundEnabled(value) }
+                })).disabled(model.changingBackground)
+                if model.backgroundStatus == .requiresApproval {
+                    HStack {
+                        Text("Allow HookFeed in Login Items to receive while the app is closed.").font(.caption)
+                        Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                    }
+                }
+                Text("The background receiver starts at login and stores updates while the app is closed. Connections can only send; they cannot read your inbox.")
                     .font(.callout).foregroundStyle(.secondary)
                 if let error = model.error { Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
                 VStack(alignment: .leading, spacing: 12) {

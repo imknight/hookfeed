@@ -1,8 +1,7 @@
 import Foundation
-import HookFeedCore
 
-enum LoginShell {
-    static func path() async throws -> String {
+public enum LoginShell {
+    public static func path() async throws -> String {
         let environment = ProcessInfo.processInfo.environment
         let executable = URL(fileURLWithPath: environment["SHELL"] ?? "/bin/zsh")
         let result = try await ProcessCommandRunner(environmentPath: environment["PATH"] ?? "").run(executable, ["-lc", "echo $PATH"], timeout: 5)

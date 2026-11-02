@@ -1,3 +1,4 @@
+@testable import HookFeedCore
 import Darwin
 import Foundation
 import XCTest

@@ -1,27 +1,26 @@
 import Darwin
 import Foundation
-import HookFeedCore
 
-struct TailscaleStatus: Sendable {
-    let addresses: ReachAddresses
-    let reason: String?
+public struct TailscaleStatus: Sendable {
+    public let addresses: ReachAddresses
+    public let reason: String?
 
     static func cliPaths(loginPath: String, environmentPath: String) -> [String] {
         (loginPath + ":" + environmentPath).split(separator: ":").filter { $0.hasPrefix("/") }.map { String($0) + "/tailscale" }
             + ["/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"]
     }
 
-    static func executable() async -> URL? {
+    public static func executable() async -> URL? {
         let loginPath = (try? await LoginShell.path()) ?? ""
         return cliPaths(loginPath: loginPath, environmentPath: ProcessInfo.processInfo.environment["PATH"] ?? "")
             .first(where: { FileManager.default.isExecutableFile(atPath: $0) }).map { URL(fileURLWithPath: $0) }
     }
 
-    static func serveArguments(port: Int, reset: Bool) -> [String] {
+    public static func serveArguments(port: Int, reset: Bool) -> [String] {
         reset ? ["serve", "reset"] : ["serve", "--bg", "--https=443", "http://127.0.0.1:\(port)"]
     }
 
-    static func detect() async -> TailscaleStatus {
+    public static func detect() async -> TailscaleStatus {
         guard let executable = await executable() else {
             return TailscaleStatus(addresses: ReachAddresses(tailscaleIP: nil, tailscaleHost: nil), reason: "Tailscale CLI not found.")
         }

@@ -1,5 +1,4 @@
 import Foundation
-import HookFeedCore
 import MCP
 import Network
 
@@ -62,7 +61,7 @@ struct HTTPRequestReader {
 }
 
 // Mutable listener/client state is confined to queue.
-final class RemoteServer: @unchecked Sendable {
+public final class RemoteServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "app.hookfeed.remote")
     private var listeners: [NWListener] = []
     private var socketListeners: [RemoteSocketListener] = []
@@ -72,10 +71,13 @@ final class RemoteServer: @unchecked Sendable {
     private var mcp: RemoteMCP?
     private let connections: RemoteConnections
     private let store: InboxStore
+    private let lockPath: String?
+    private var listenerLock: RemoteFileLock?
 
-    init(connections: RemoteConnections, store: InboxStore) {
+    public init(connections: RemoteConnections, store: InboxStore, lockPath: String? = nil) {
         self.connections = connections
         self.store = store
+        self.lockPath = lockPath
     }
 
     static func endpoint(address: String, port: Int) throws -> NWEndpoint {
@@ -90,7 +92,9 @@ final class RemoteServer: @unchecked Sendable {
         return .hostPort(host: .ipv4(ipv4), port: port)
     }
 
-    func start(addresses: [String], port: Int, reachAddresses: ReachAddresses = ReachAddresses(tailscaleIP: nil, tailscaleHost: nil), state: @escaping (String?) -> Void, didStore: @escaping () -> Void) throws {
+    public func start(addresses: [String], port: Int, reachAddresses: ReachAddresses = ReachAddresses(tailscaleIP: nil, tailscaleHost: nil), state: @escaping (String?) -> Void, didStore: @escaping () -> Void) throws {
+        stop()
+        let ownership = try lockPath.map { try RemoteFileLock(path: $0) }
         let endpoints = try addresses.map { try Self.endpoint(address: $0, port: port) }
         let pending = try zip(addresses, endpoints).filter { $0.0 == "127.0.0.1" }.map { _, endpoint -> NWListener in
             let parameters = NWParameters.tcp
@@ -100,6 +104,7 @@ final class RemoteServer: @unchecked Sendable {
         }
         queue.sync {
             stopOnQueue()
+            listenerLock = ownership
             let current = generation
             let mcp = RemoteMCP(connections: connections, store: store, port: port, addresses: reachAddresses,
                                 didStore: { DispatchQueue.main.async(execute: didStore) })
@@ -170,7 +175,11 @@ final class RemoteServer: @unchecked Sendable {
         }
     }
 
-    func stop() { queue.sync { stopOnQueue() } }
+    public func stop() {
+        queue.sync { stopOnQueue() }
+        cancellations.wait()
+        queue.sync { listenerLock = nil }
+    }
 
     static func rejectAtCapacity(_ connection: any RemoteTCPConnection, on queue: DispatchQueue) {
         let body = RemoteRequest.failure(503, "Remote is at capacity.").json
@@ -183,7 +192,7 @@ final class RemoteServer: @unchecked Sendable {
     }
 
     #if DEBUG
-    var activeConnectionCount: Int { queue.sync { clients.count } }
+    public var activeConnectionCount: Int { queue.sync { clients.count } }
     #endif
 
     private func stopOnQueue() {

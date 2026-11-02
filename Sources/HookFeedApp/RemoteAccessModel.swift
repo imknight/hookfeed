@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import HookFeedCore
+import ServiceManagement
 
 @MainActor
 final class RemoteAccessModel: ObservableObject {
@@ -14,6 +15,10 @@ final class RemoteAccessModel: ObservableObject {
     @Published private(set) var refreshing = false
     @Published private(set) var configuringTailscale = false
     @Published private(set) var tailscaleResult: String?
+    @Published private(set) var backgroundStatus: SMAppService.Status = .notRegistered
+    @Published private(set) var changingBackground = false
+    private var backgroundMonitor: Task<Void, Never>?
+    private var backgroundService: SMAppService { .agent(plistName: "app.hookfeed.receiver.plist") }
     private var registry: RemoteConnections?
     private var server: RemoteServer?
     private var preferences: UserDefaults?
@@ -45,6 +50,7 @@ final class RemoteAccessModel: ObservableObject {
     }
 
     var canCreate: Bool { registry != nil }
+    var backgroundEnabled: Bool { backgroundStatus == .enabled || backgroundStatus == .requiresApproval }
 
     func activate() {
         guard !started else { return }
@@ -56,14 +62,23 @@ final class RemoteAccessModel: ObservableObject {
                 return
             }
             #endif
-            let registry = try RemoteConnections(store: KeychainSecretStore())
+            let store = try InboxStore()
+            let registry = try RemoteConnections(store: KeychainSecretStore(), coordinationPath: RemotePreferences.connectionsLockPath)
             self.registry = registry
             connections = registry.all
-            preferences = UserDefaults(suiteName: KeychainSecretStore.service + ".settings")
+            preferences = UserDefaults(suiteName: RemotePreferences.domain)
             enabled = preferences?.bool(forKey: "enabled") ?? false
-            server = RemoteServer(connections: registry, store: try InboxStore())
+            server = RemoteServer(connections: registry, store: store, lockPath: RemotePreferences.listenerLockPath)
+            backgroundStatus = backgroundService.status
             if enabled { restart() }
             Task { await refreshAddresses() }
+            backgroundMonitor = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    await self.refreshBackgroundStatus()
+                    try? await Task.sleep(for: .seconds(2))
+                }
+            }
         } catch {
             self.error = error.localizedDescription
             #if DEBUG
@@ -78,7 +93,48 @@ final class RemoteAccessModel: ObservableObject {
     func setEnabled(_ value: Bool) {
         enabled = value
         preferences?.set(value, forKey: "enabled")
+        preferences?.synchronize()
         restart()
+    }
+
+    func setBackgroundEnabled(_ value: Bool) async {
+        guard !changingBackground else { return }
+        changingBackground = true
+        defer { changingBackground = false }
+        do {
+            if value {
+                let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hookfeed")
+                guard FileManager.default.isExecutableFile(atPath: helper.path) else {
+                    throw ConfigurationError("Build and install HookFeed.app before enabling its background receiver.")
+                }
+                stop()
+                try KeychainSecretStore().authorizeHelper(at: helper.path)
+                if backgroundService.status != .enabled { try backgroundService.register() }
+            } else { try await backgroundService.unregister() }
+            backgroundStatus = backgroundService.status
+            restart()
+        } catch {
+            backgroundStatus = backgroundService.status
+            restart()
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func refreshBackgroundStatus() async {
+        guard !changingBackground else { return }
+        let status = backgroundService.status
+        if status != backgroundStatus {
+            backgroundStatus = status
+            restart()
+        }
+        guard status == .enabled, enabled else { return }
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/v1/health")!)
+        request.timeoutInterval = 1
+        let response = try? await URLSession.shared.data(for: request)
+        guard backgroundStatus == .enabled, enabled else { return }
+        listening = (response?.1 as? HTTPURLResponse)?.statusCode == 200
+        error = listening ? nil : "Background receiver is not responding. Check Login Items and Keychain access, or turn off background receiving to use the app listener."
+        connections = registry?.all ?? []
     }
 
     func stop() {
@@ -136,7 +192,7 @@ final class RemoteAccessModel: ObservableObject {
 
     private func restart() {
         stop()
-        guard enabled, let server else { return }
+        guard enabled, backgroundStatus != .enabled, let server else { return }
         error = nil
         let current = generation
         do {
@@ -180,11 +236,12 @@ final class RemoteAccessModel: ObservableObject {
         debugMode = true
         addresses = ReachAddresses(tailscaleIP: nil, tailscaleHost: nil)
         tailscaleReason = "Tailscale is disabled in the loopback debug harness."
-        let secrets = try KeychainSecretStore.isolatedTestStore(home: home, service: service)
+        let secrets = try KeychainSecretStore.isolatedTestStore(home: home, service: service, helperPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hookfeed").path)
         debugSecrets = secrets
-        let registry = try RemoteConnections(store: secrets)
+        let store = try InboxStore(path: storePath)
+        let registry = try RemoteConnections(store: secrets, coordinationPath: RemotePreferences.connectionsLockPath)
         self.registry = registry
-        server = RemoteServer(connections: registry, store: try InboxStore(path: storePath))
+        server = RemoteServer(connections: registry, store: store, lockPath: RemotePreferences.listenerLockPath)
         if let id = argument("--debug-remote-revoke") { try registry.revoke(id: id) }
         if let name = argument("--debug-remote-create") {
             let created = try registry.create(name: name, route: .thisMachine, now: now())

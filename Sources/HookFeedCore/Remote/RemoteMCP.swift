@@ -1,5 +1,4 @@
 import Foundation
-import HookFeedCore
 import MCP
 
 final class RemoteMCP: @unchecked Sendable {

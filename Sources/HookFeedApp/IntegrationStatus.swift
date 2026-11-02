@@ -15,16 +15,6 @@ enum ConnectionState: Equatable {
     }
 }
 
-protocol CommandRunner: Sendable {
-    func run(_ executable: URL, _ arguments: [String], timeout: TimeInterval) async throws -> CommandResult
-}
-
-struct CommandResult: Equatable {
-    let status: Int32
-    let stdout: String
-    let stderr: String
-}
-
 enum IntegrationStatus {
     static func state(for integration: Integration, detection: Detection, cliPath: String, runner: CommandRunner,
                       configPath: (HookAgent) -> URL = HookInstaller.path) async -> ConnectionState {

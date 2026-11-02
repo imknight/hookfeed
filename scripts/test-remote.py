@@ -7,6 +7,7 @@ import hashlib
 import http.client
 import json
 import os
+import plistlib
 from pathlib import Path
 import queue
 import pwd
@@ -37,8 +38,16 @@ def main():
                    HOOKFEED_LOG_PATH=home+'/hook.log', HOOKFEED_KEYCHAIN_SERVICE=service)
         # Always build both binaries from this checkout. Never select an old .build-cli product.
         subprocess.run(['./scripts/build-app.sh', '--debug'], cwd=ROOT, env=env, check=True)
-        binary = str(APP / 'Contents/Helpers/hookfeed')
-        executable = str(APP / 'Contents/MacOS/HookFeed')
+        test_app = Path(home) / 'HookFeed.app'
+        subprocess.run(['/usr/bin/ditto', str(APP), str(test_app)], check=True)
+        info_path = test_app / 'Contents/Info.plist'
+        info = plistlib.loads(info_path.read_bytes())
+        info['CFBundleIdentifier'] = service + '.app'
+        info_path.write_bytes(plistlib.dumps(info))
+        subprocess.run(['/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none',
+                        '--identifier', info['CFBundleIdentifier'], str(test_app)], check=True)
+        binary = str(test_app / 'Contents/Helpers/hookfeed')
+        executable = str(test_app / 'Contents/MacOS/HookFeed')
         with socket.socket() as probe:
             try:
                 probe.bind(('127.0.0.1', 47321))
@@ -48,6 +57,7 @@ def main():
         base = f'http://127.0.0.1:{port}'
         client = env | {'HOOKFEED_STORE_PATH': home+'/client.sqlite'}
         app = None
+        helper = None
         errors = tempfile.TemporaryFile()
         lines = queue.Queue()
 
@@ -156,6 +166,10 @@ def main():
             created = event('created')
             token, identifier = created['token'], created['id']
             event('ready')
+            duplicate = subprocess.run([binary, 'serve', '--port', str(port), '--test-keychain'], env=env,
+                                       capture_output=True, timeout=8)
+            assert duplicate.returncode != 0, 'CLI must not double-bind the app listener'
+            checks += 1
             bound = subprocess.run(['/usr/sbin/lsof', '-nP', '-a', '-p', str(app.pid), '-iTCP', '-sTCP:LISTEN'], capture_output=True, text=True, check=True).stdout
             listeners = [line for line in bound.splitlines() if '(LISTEN)' in line]
             assert len(listeners) == 1 and f'127.0.0.1:{port} (LISTEN)' in listeners[0], 'Unexpected listener binding'
@@ -318,6 +332,47 @@ def main():
             launch('--debug-remote-start'); event('ready')
             assert request(auth='Bearer '+token)[0] == 401
             control('quit', 'stopped'); app.wait(timeout=5); app = None
+            # A standalone helper receives HTTP and MCP after the UI process exits.
+            launch('--debug-remote-create', 'Background connection')
+            background = event('created')
+            event('disabled')
+            control('quit', 'stopped'); app.wait(timeout=5); app = None
+            subprocess.run(['/usr/bin/defaults', 'write', service+'.settings', 'enabled', '-bool', 'YES'], env=env, check=True)
+            helper = subprocess.Popen([binary, 'serve', '--managed', '--port', str(port), '--test-keychain'], env=env,
+                                      stdout=subprocess.DEVNULL, stderr=errors)
+            deadline = time.monotonic() + 8
+            while True:
+                assert helper.poll() is None, 'Headless receiver exited'
+                try:
+                    if request(method='GET', path='/v1/health')[0] == 200: break
+                except (OSError, http.client.HTTPException): pass
+                assert time.monotonic() < deadline, 'Headless receiver did not start'
+                time.sleep(0.05)
+            assert app is None
+            assert request(auth='Bearer '+background['token'])[0] == 201
+            session = initialize_mcp(background['token'])
+            send = {'jsonrpc':'2.0', 'id':3, 'method':'tools/call', 'params':{
+                'name':'send_message', 'arguments':{'title':'Received without UI', 'source':'grokbot'}}}
+            status, _, result = mcp(send, 'Bearer '+background['token'], session)
+            assert status == 200 and not result['result'].get('isError', False)
+            assert rows()[0]['title'] == 'Received without UI'
+            assert request(auth='Bearer '+token)[0] == 401
+            # The running helper must observe a token revoked by a separate UI process immediately.
+            launch(); event('disabled')
+            control('revoke '+background['id'], 'revoked')
+            assert request(auth='Bearer '+background['token'])[0] == 401
+            assert mcp(list_tools, 'Bearer '+background['token'], session)[0] == 401
+            control('quit', 'stopped'); app.wait(timeout=5); app = None
+            subprocess.run(['/usr/bin/defaults', 'write', service+'.settings', 'enabled', '-bool', 'NO'], env=env, check=True)
+            deadline = time.monotonic() + 8
+            while True:
+                try: request(method='GET', path='/v1/health')
+                except (ConnectionRefusedError, ConnectionResetError): break
+                assert time.monotonic() < deadline, 'Managed helper ignored disabled setting'
+                time.sleep(0.05)
+            assert helper.poll() is None, 'Disabled managed helper should stay available'
+            helper.terminate(); helper.wait(timeout=5); helper = None
+            print('Verified headless HTTP/MCP delivery, listener exclusion, and cross-process revocation.', flush=True)
             with socket.socket() as dead:
                 dead.bind(('127.0.0.1', 0)); dead_url = f'http://127.0.0.1:{dead.getsockname()[1]}'
                 start = time.monotonic()
@@ -385,6 +440,10 @@ def main():
             assert not Path(client['HOOKFEED_STORE_PATH']).exists()
             print(f'PASS: {checks} remote checks; real debug app/helper, loopback port {port}; no token logged')
         finally:
+            if helper is not None:
+                helper.terminate()
+                try: helper.wait(timeout=5)
+                except subprocess.TimeoutExpired: helper.kill(); helper.wait()
             if app is not None:
                 app.terminate()
                 try: app.wait(timeout=5)

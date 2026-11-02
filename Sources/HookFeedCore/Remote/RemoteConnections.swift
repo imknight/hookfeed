@@ -20,15 +20,16 @@ public final class RemoteConnections: @unchecked Sendable {
     private let store: any RemoteSecretStore
     private var connections: [RemoteConnection]
     private let lock = NSLock()
+    private let coordinationPath: String?
 
-    public init(store: any RemoteSecretStore) throws {
+    public init(store: any RemoteSecretStore, coordinationPath: String? = nil) throws {
+        self.coordinationPath = coordinationPath
         self.store = store
         connections = try store.load()
     }
 
     public var all: [RemoteConnection] {
-        lock.lock(); defer { lock.unlock() }
-        return connections
+        (try? synchronized { connections }) ?? []
     }
 
     public func create(name: String, route: ReachRoute, now: Date) throws -> (connection: RemoteConnection, token: String) {
@@ -44,38 +45,50 @@ public final class RemoteConnections: @unchecked Sendable {
             .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         let connection = RemoteConnection(id: UUID().uuidString.lowercased(), name: name, route: route,
                                           tokenHash: Data(SHA256.hash(data: Data(token.utf8))), createdAt: now)
-        lock.lock(); defer { lock.unlock() }
-        let updated = connections + [connection]
-        try store.save(updated)
-        connections = updated
-        return (connection, token)
+        return try synchronized {
+            let updated = connections + [connection]
+            try store.save(updated)
+            connections = updated
+            return (connection, token)
+        }
     }
 
     public func authenticate(bearer: String?) -> RemoteConnection? {
         guard let bearer, bearer.hasPrefix("hf_"), bearer.utf8.count == 46 else { return nil }
         let hash = Data(SHA256.hash(data: Data(bearer.utf8)))
-        lock.lock(); defer { lock.unlock() }
-        return connections.first { connection in
+        return try? synchronized { connections.first { connection in
             guard connection.tokenHash.count == hash.count else { return false }
             var difference: UInt8 = 0
             for (a, b) in zip(connection.tokenHash, hash) { difference |= a ^ b }
             return difference == 0
-        }
+        } }
     }
 
     public func revoke(id: String) throws {
-        lock.lock(); defer { lock.unlock() }
-        let updated = connections.filter { $0.id != id }
-        try store.save(updated)
-        connections = updated
+        try synchronized {
+            let updated = connections.filter { $0.id != id }
+            try store.save(updated)
+            connections = updated
+        }
     }
 
     public func markUsed(id: String, now: Date) {
-        lock.lock(); defer { lock.unlock() }
-        guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
-        var updated = connections
-        updated[index].lastUsedAt = now
         // A metadata write failure must not turn an already stored message into a failed send.
-        do { try store.save(updated); connections = updated } catch { }
+        try? synchronized {
+            guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
+            var updated = connections
+            updated[index].lastUsedAt = now
+            try store.save(updated)
+            connections = updated
+        }
+    }
+
+    private func synchronized<T>(_ action: () throws -> T) throws -> T {
+        lock.lock(); defer { lock.unlock() }
+        let ownership = try coordinationPath.map { try RemoteFileLock(path: $0, wait: true) }
+        return try withExtendedLifetime(ownership) {
+            if coordinationPath != nil { connections = try store.load() }
+            return try action()
+        }
     }
 }

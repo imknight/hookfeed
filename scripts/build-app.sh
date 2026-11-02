@@ -73,6 +73,8 @@ mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Helpers" "$app_path/Cont
 /usr/bin/ditto "$bin_path/HookFeedDesktop" "$app_path/Contents/MacOS/HookFeed"
 /usr/bin/ditto "$bin_path/hookfeed" "$app_path/Contents/Helpers/hookfeed"
 /usr/bin/ditto "$ROOT/Config/Info.plist" "$app_path/Contents/Info.plist"
+mkdir -p "$app_path/Contents/Library/LaunchAgents"
+/usr/bin/ditto "$ROOT/Config/app.hookfeed.receiver.plist" "$app_path/Contents/Library/LaunchAgents/app.hookfeed.receiver.plist"
 chmod 755 "$app_path/Contents/MacOS/HookFeed" "$app_path/Contents/Helpers/hookfeed"
 
 mkdir -p "$app_path/Contents/Frameworks"

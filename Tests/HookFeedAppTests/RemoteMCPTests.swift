@@ -1,5 +1,5 @@
 import Foundation
-import HookFeedCore
+@testable import HookFeedCore
 import MCP
 import XCTest
 @testable import HookFeedApp

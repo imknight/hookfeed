@@ -1,3 +1,4 @@
+@testable import HookFeedCore
 import XCTest
 @testable import HookFeedApp
 

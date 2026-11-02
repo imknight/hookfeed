@@ -111,9 +111,29 @@ The version should be `0.1.0`. Installation is for the current user only.
 ## Remote access
 
 Open **Settings → Remote**, turn on **Enable remote access**, choose how to reach
-this Mac, and create a named connection such as “Home server”. HookFeed must stay
-open. Remote is off by default; switching it off closes all listeners and active
-connections.
+this Mac, and create a named connection such as “Home server”. Remote is off by
+default. Turn on **Receive while HookFeed is closed** to register the bundled
+`hookfeed serve --managed` LaunchAgent with macOS. Allow it in System Settings →
+General → Login Items if prompted. It starts at login and stores HTTP/MCP updates
+without the app UI. With this option off, HookFeed must stay open.
+
+The app and helper share a listener lock so only one owns port 47321. Switching
+remote access off closes the app listener immediately; the managed helper picks
+up the setting within two seconds. Quitting the app leaves an enabled helper
+running. Background storage does not display notification banners while the UI
+is closed; open the inbox to read the stored updates.
+
+Enabling the helper authorizes the bundled CLI in the existing Keychain item's
+access list. macOS may ask you to allow this change. Token hashes stay in
+Keychain; no raw tokens are copied to files or launch arguments. The helper
+fails closed without interactive Keychain prompts if access is denied or the
+Keychain is locked. Re-enable background receiving from the installed, signed
+app to renew authorization after replacing an ad-hoc build. This is a per-user
+LaunchAgent, so reception requires a logged-in session and an awake Mac.
+
+For manual foreground operation, run `hookfeed serve` (or `hookfeed serve --port
+47321`) after authorizing the bundled helper through Settings. Stop it with
+Control-C. The same authentication and loopback/Tailscale restrictions apply.
 
 Choose **This machine** for `http://127.0.0.1:47321`, or **Tailscale IP** for this
 Mac's `http://100.x.y.z:47321` address. The Tailscale IP listener exists only while
@@ -122,15 +142,20 @@ route. Unavailable routes are disabled with a reason; use **Refresh Tailscale**
 after starting Tailscale.
 
 For **Tailscale HTTPS**, HookFeed shows the `.ts.net` hostname reported by the
-local Tailscale CLI. On this Mac, run the command shown in the tab yourself:
+local Tailscale CLI, searching the login-shell PATH, Homebrew directories, then
+the Tailscale app. Choose **Set up Tailscale HTTPS…** and confirm to run:
 
 ```sh
 tailscale serve --bg --https=443 http://127.0.0.1:47321
 ```
 
-HookFeed never runs Serve or changes its configuration. A displayed hostname does
-not verify that Serve is configured. This route remains within your tailnet;
-public/Funnel access is not supported.
+The tab shows the command's output. Setup changes this Mac's HTTPS mapping on
+port 443 and may replace an existing mapping. **Reset Tailscale Serve…** requires
+separate confirmation and removes all Serve mappings on this Mac, including
+other apps' mappings. A displayed hostname alone does not verify that Serve is
+configured. The detected MagicDNS host accepts forwarded TCP ports for MCP Host
+validation; browser Origin restrictions remain unchanged. This route remains
+within your tailnet; public/Funnel access is not supported.
 
 Save the connection token when it appears: it is shown only once. The app stores
 only its SHA-256 hash in Keychain. All bots on that connection share the token
