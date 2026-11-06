@@ -41,22 +41,22 @@ final class IntegrationRegistryTests: XCTestCase {
     }
 
     func testOrderAndIDs() {
-        XCTAssertEqual(Integration.all.map(\.id), ["claude-code", "codex", "hermes", "openclaw", "grokbot", "antigravity", "gemini-cli", "cursor"])
+        XCTAssertEqual(Integration.all.map(\.id), ["claude-code", "codex", "hermes", "openclaw", "grokbot", "antigravity", "cursor"])
         XCTAssertEqual(Integration.named("codex")?.name, "Codex")
         XCTAssertNil(Integration.named("nope"))
+        XCTAssertNil(Integration.named("gemini-cli"))
     }
 
     func testCardTextMatchesCurrentSettings() {
-        XCTAssertEqual(Integration.all.map(\.name), ["Claude Code", "Codex", "Hermes Agent", "OpenClaw", "Grok Bot", "Google Antigravity", "Gemini CLI", "Cursor"])
-        XCTAssertEqual(Integration.all.map(\.promise), ["Automatic", "Completions + approvals", "Agent decides when to send", "Agent decides when to send", "Agent decides when to send", "Completions + failures", "Completions + approvals", "Completions"])
+        XCTAssertEqual(Integration.all.map(\.name), ["Claude Code", "Codex", "Hermes Agent", "OpenClaw", "Grok Bot", "Antigravity CLI (agy)", "Cursor"])
+        XCTAssertEqual(Integration.all.map(\.promise), ["Automatic", "Completions + approvals", "Agent decides when to send", "Agent decides when to send", "Agent decides when to send", "Completions + failures", "Completions"])
         XCTAssertEqual(Integration.all.map(\.summary), [
             "Merge into ~/.claude/settings.json. Stop updates a session thread; Notification reports permission and input requests.",
             "Merge these Stop and PermissionRequest hooks into ~/.codex/hooks.json, then review and trust them through /hooks in Codex. Choose one delivery route per session.",
-            "Paste the setup prompt into Hermes. It adds HookFeed under mcp_servers in ~/.hermes/config.yaml, asks you to run /reload-mcp, sends a test, and saves when-to-send rules to its memory.",
+            "Paste the setup prompt into Hermes. It adds HookFeed under mcp_servers in your active profile's config.yaml (default: ~/.hermes/config.yaml), asks you to run /reload-mcp, sends a test, and saves when-to-send rules to its memory.",
             "Connect through MCP in ~/.openclaw/openclaw.json, then save the when-to-send rules in your agent workspace. For another machine or server, use Settings → Remote.",
             "Generic MCP setup; Grok Bot's config location and format are unverified. Copy the setup prompt for local stdio or use Settings → Remote for another machine.",
-            "Merge into ~/.gemini/config/hooks.json. Stop reports completed runs and failures once background tasks finish. Permission and input requests are not reported.",
-            "Merge into ~/.gemini/settings.json. AfterAgent updates a session thread; Notification reports tool permission requests.",
+            "Connect agy through ~/.gemini/config/hooks.json. Stop reports completed runs and failures once background tasks finish. Permission and input requests are not reported.",
             "Merge stop hooks into ~/.cursor/hooks.json for local completions. Use MCP for agent-requested updates; cloud agents need separate setup."
         ])
     }
@@ -99,15 +99,4 @@ final class IntegrationRegistryTests: XCTestCase {
         XCTAssertEqual(hermes.snippets.map { $0.text(path) }, [IntegrationPrompts.hermes(cliPath: path), IntegrationPrompts.hermesSample])
         XCTAssertEqual(hermes.snippets.map(\.noun), ["configuration", "example message"])
     }
-    func testGeminiRegistry() throws {
-        let integration = try XCTUnwrap(Integration.named("gemini-cli"))
-        XCTAssertEqual(Set(Integration.all.map(\.id)).count, Integration.all.count)
-        guard case .hooks(.geminiCLI) = integration.route else { return XCTFail("Expected hooks") }
-        XCTAssertEqual(integration.configDirectory, ".gemini")
-        XCTAssertEqual(integration.executable, "gemini")
-        XCTAssertEqual(HookAgent.geminiCLI.relativeConfigPath, ".gemini/settings.json")
-        XCTAssertEqual(HookAgent.geminiCLI.hookEvents.map(\.event), ["AfterAgent", "Notification"])
-        XCTAssertEqual(HookAgent.geminiCLI.hookEvents.map(\.matcher), ["", "ToolPermission"])
-    }
-
 }

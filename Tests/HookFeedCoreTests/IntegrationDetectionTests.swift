@@ -57,26 +57,13 @@ final class IntegrationDetectionTests: XCTestCase {
         XCTAssertNil(detect("antigravity").executable)
     }
 
-    func testAntigravityAndGeminiDoNotCrossDetect() throws {
-        // Gemini is being added separately; exercise its shared-directory contract here.
-        let gemini = Integration(id: "gemini-cli", name: "Gemini CLI", summary: "", promise: "", route: .mcp,
-                                 configDirectory: ".gemini", executable: "gemini", rulesSource: nil, snippets: [], prompt: { _ in "" })
-        func geminiFound() -> Bool {
-            IntegrationDetection.detect(gemini, home: home, searchPath: "", fallbackDirectories: ["~/.local/bin"]).found
-        }
-        let agy = try executable(".local/bin/agy")
-        try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini/antigravity"), withIntermediateDirectories: true)
-        XCTAssertTrue(detect("antigravity").found)
-        XCTAssertFalse(geminiFound())
-        try FileManager.default.removeItem(at: agy)
-        try FileManager.default.removeItem(at: home.appendingPathComponent(".gemini/antigravity"))
+    func testLegacySettingsAndExecutableDoNotDetectAntigravity() throws {
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: home.appendingPathComponent(".gemini/settings.json"))
-        XCTAssertTrue(geminiFound())
         XCTAssertFalse(detect("antigravity").found)
-        try FileManager.default.removeItem(at: home.appendingPathComponent(".gemini"))
         _ = try executable(".local/bin/gemini")
-        XCTAssertTrue(geminiFound())
         XCTAssertFalse(detect("antigravity").found)
+        XCTAssertTrue(Integration.all.allSatisfy { !detect($0.id).found })
     }
 
     func detect(_ id: String, path: String = "") -> Detection {
@@ -147,19 +134,4 @@ final class IntegrationDetectionTests: XCTestCase {
     func testNothingFound() {
         for integration in Integration.all { XCTAssertFalse(detect(integration.id, path: ":relative:").found) }
     }
-    func testGeminiRequiresSettingsRatherThanAntigravityDirectory() throws {
-        try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini/antigravity"), withIntermediateDirectories: true)
-        XCTAssertFalse(detect("gemini-cli").found)
-        try Data("{}".utf8).write(to: home.appendingPathComponent(".gemini/settings.json"))
-        XCTAssertTrue(detect("gemini-cli").configDirectory)
-        XCTAssertNil(detect("gemini-cli").executable)
-    }
-
-    func testGeminiPathAndFallbackDetection() throws {
-        let fallback = try executable(".local/bin/gemini")
-        XCTAssertEqual(detect("gemini-cli").executable, fallback)
-        let path = try executable("bin/gemini")
-        XCTAssertEqual(detect("gemini-cli", path: path.deletingLastPathComponent().path).executable, path)
-    }
-
 }

@@ -152,6 +152,28 @@ final class IntegrationPromptsTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(String.self, from: Data(encoded.utf8)), path)
         XCTAssertTrue(IntegrationPrompts.hermesPrompt(cliPath: path).contains("source \"hermes\""))
     }
+
+    func testHermesSetupCommandWithAndWithoutProfile() {
+        XCTAssertEqual(IntegrationPrompts.hermesAddCommand(url: "http://127.0.0.1:47321"),
+                       "hermes mcp add hookfeed --url 'http://127.0.0.1:47321/mcp' --auth header")
+        XCTAssertEqual(IntegrationPrompts.hermesAddCommand(url: "https://mac.tailnet.ts.net", profile: "helena"),
+                       "hermes -p 'helena' mcp add hookfeed --url 'https://mac.tailnet.ts.net/mcp' --auth header")
+    }
+
+    func testHermesSetupCommandQuotesProfileAndURL() {
+        let value = #"Knight's "test" \ profile"#
+        XCTAssertEqual(IntegrationPrompts.hermesAddCommand(url: value, profile: value),
+                       #"hermes -p 'Knight'\''s "test" \ profile' mcp add hookfeed --url 'Knight'\''s "test" \ profile/mcp' --auth header"#)
+    }
+
+    func testHermesRemoteYAMLPreservesTokenAndProfileGuidance() throws {
+        let value = #"Knight's "test" \ token"#
+        let yaml = IntegrationPrompts.hermesRemote(url: value, token: value)
+        let line = try XCTUnwrap(yaml.split(separator: "\n").first { $0.contains("Authorization:") })
+        let encoded = String(line.dropFirst("      Authorization: ".count))
+        XCTAssertEqual(try JSONDecoder().decode(String.self, from: Data(encoded.utf8)), "Bearer " + value)
+        XCTAssertTrue(IntegrationPrompts.hermesPrompt(cliPath: "/tmp/hookfeed").contains("Profiles keep their own config"))
+    }
     func testOpenClawConfigurationsMatchDocFixtures() throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures")
         XCTAssertEqual(IntegrationPrompts.openclaw(cliPath: "/Applications/HookFeed.app/Contents/Helpers/hookfeed") + "\n",
@@ -193,67 +215,6 @@ final class IntegrationPromptsTests: XCTestCase {
         XCTAssertTrue(command.isListed("- hookfeed (1 connected principal)"))
         XCTAssertFalse(command.isListed("- hookfeed-other\n- docs"))
         XCTAssertFalse(command.isListed("No OpenClaw-managed MCP servers configured in /hookfeed/config."))
-    }
-
-    func testGeminiEscapesJSONAndShellPath() throws {
-        let path = "/Apps/Knight's \"quoted\" \\ folder/hookfeed"
-        let text = IntegrationPrompts.gemini(cliPath: path)
-        let expected = #"'/Apps/Knight'\\''s \"quoted\" \\ folder/hookfeed' hook gemini-cli"#
-        XCTAssertEqual(text, """
-        {
-          "hooks" : {
-            "AfterAgent" : [
-              {
-                "hooks" : [
-                  {
-                    "command" : "\(expected)",
-                    "timeout" : 1000,
-                    "type" : "command"
-                  }
-                ]
-              }
-            ],
-            "Notification" : [
-              {
-                "hooks" : [
-                  {
-                    "command" : "\(expected)",
-                    "timeout" : 1000,
-                    "type" : "command"
-                  }
-                ],
-                "matcher" : "ToolPermission"
-              }
-            ]
-          }
-        }
-        """)
-        let hooks = try XCTUnwrap(try HookConfiguration.parse(Data(text.utf8))["hooks"] as? [String: [[String: Any]]])
-        let command = (hooks["AfterAgent"]![0]["hooks"] as! [[String: Any]])[0]["command"] as? String
-        XCTAssertEqual(command, "\(ShellText.quote(path)) hook gemini-cli")
-        let prompt = IntegrationPrompts.geminiPrompt(cliPath: path)
-        XCTAssertTrue(prompt.hasSuffix(text))
-        XCTAssertTrue(prompt.contains("~/.gemini/settings.json"))
-    }
-
-    func testGeminiRemoteEscapesJSON() throws {
-        let value = "quote\" space \\ path"
-        let text = IntegrationPrompts.geminiRemote(url: value, token: value)
-        XCTAssertEqual(text, #"""
-        {
-          "mcpServers" : {
-            "hookfeed" : {
-              "headers" : {
-                "Authorization" : "Bearer quote\" space \\ path"
-              },
-              "httpUrl" : "quote\" space \\ path/mcp"
-            }
-          }
-        }
-        """#)
-        let servers = try XCTUnwrap(try HookConfiguration.parse(Data(text.utf8))["mcpServers"] as? [String: [String: Any]])
-        XCTAssertEqual(servers["hookfeed"]?["httpUrl"] as? String, value + "/mcp")
-        XCTAssertEqual((servers["hookfeed"]?["headers"] as? [String: String])?["Authorization"], "Bearer " + value)
     }
 
 }

@@ -10,7 +10,7 @@ HookFeed is a native Mac app that collects updates from local agents and scripts
 - Search, pinning, an attention-only view, and Markdown message bodies
 - Optional macOS notifications, batched to avoid noise
 - Bundled `hookfeed` CLI and a local stdio MCP server
-- One-click setup for Claude Code, Codex, Cursor, Gemini CLI, Google Antigravity, Hermes Agent and OpenClaw
+- One-click setup for Claude Code, Codex, Cursor, Antigravity CLI (`agy`), Hermes Agent and OpenClaw
 - Optional remote access over Tailscale with per-device tokens
 - Signed, notarized, and updated automatically with Sparkle
 

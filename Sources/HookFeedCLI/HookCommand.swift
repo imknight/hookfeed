@@ -7,7 +7,7 @@ import HookFeedCore
 struct Hook: ParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Agent hook adapters. Always exits 0 and never writes to stdout.",
-        subcommands: [ClaudeCodeHook.self, CodexHook.self, AntigravityHook.self, GeminiCLIHook.self, CursorHook.self]
+        subcommands: [ClaudeCodeHook.self, CodexHook.self, AntigravityHook.self, CursorHook.self]
     )
 }
 
@@ -50,18 +50,6 @@ struct AntigravityHook: ParsableCommand {
     }
 }
 
-struct GeminiCLIHook: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "gemini-cli", abstract: "Accept a Gemini CLI AfterAgent or Notification JSON object on stdin.")
-    @Option var project: String?
-    @Option(help: "Bot name; defaults to HOOKFEED_BOT.") var bot: String?
-
-    mutating func run() {
-        HookIO.perform {
-            try HookPayload.draft(data: HookIO.read(), agent: .geminiCLI, project: project, bot: bot ?? ProcessInfo.processInfo.environment["HOOKFEED_BOT"])
-        }
-    }
-}
-
 struct CursorHook: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "cursor", abstract: "Accept a Cursor stop JSON object on stdin.")
     @Option var project: String?
@@ -76,7 +64,7 @@ struct CursorHook: ParsableCommand {
 }
 
 enum HookPayload {
-    enum Agent: String { case claudeCode = "claude-code", codex, geminiCLI = "gemini-cli" }
+    enum Agent: String { case claudeCode = "claude-code", codex }
     static let maximumBytes = 1024 * 1024
 
     static func draft(data: Data, agent: Agent, project: String?, bot: String?, includeIdle: Bool = false) throws -> MessageDraft? {
@@ -98,8 +86,8 @@ enum HookPayload {
         let body: String?
         let title: String
         let kind: MessageKind
-        if (agent != .geminiCLI && event == "Stop") || (legacy && event == "agent-turn-complete") || (agent == .geminiCLI && event == "AfterAgent") {
-            body = try text(agent == .geminiCLI ? "prompt_response" : (legacy ? "last-assistant-message" : "last_assistant_message"))
+        if event == "Stop" || (legacy && event == "agent-turn-complete") {
+            body = try text(legacy ? "last-assistant-message" : "last_assistant_message")
             let firstLine = body?.components(separatedBy: .newlines).first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             title = firstLine.isEmpty ? "Turn finished" : String(firstLine.prefix(120))
             kind = .completed
@@ -113,12 +101,6 @@ enum HookPayload {
             body = "Tool: \(tool)\n" + String(decoding: encoded, as: UTF8.self)
             let command = (input as? [String: Any])?["command"] as? String
             title = String("Approval needed: \(command.flatMap { $0.isEmpty ? nil : $0 } ?? tool)".prefix(200))
-            kind = .needsAttention
-        } else if agent == .geminiCLI && event == "Notification" {
-            guard try text("notification_type") == "ToolPermission" else { return nil }
-            body = try text("message")
-            let trimmed = body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            title = trimmed.isEmpty ? "Gemini CLI needs your permission" : String(trimmed.prefix(200))
             kind = .needsAttention
         } else if agent == .claudeCode && event == "Notification" {
             let type = try text("notification_type")

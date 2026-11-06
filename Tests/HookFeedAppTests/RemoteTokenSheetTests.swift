@@ -3,6 +3,17 @@ import XCTest
 @testable import HookFeedApp
 
 final class RemoteTokenSheetTests: XCTestCase {
+    func testHermesProfileChangesCommandWithoutChangingYAML() throws {
+        let plain = RemoteTokenSheetModel(url: "http://127.0.0.1:47321", token: "test-token")
+        let profiled = RemoteTokenSheetModel(url: "http://127.0.0.1:47321", token: "test-token", hermesProfile: "helena")
+        let original = try XCTUnwrap(plain.examples.first { $0.id == "hermes" })
+        let updated = try XCTUnwrap(profiled.examples.first { $0.id == "hermes" })
+        XCTAssertEqual(original.setupCommand, "hermes mcp add hookfeed --url 'http://127.0.0.1:47321/mcp' --auth header")
+        XCTAssertEqual(updated.setupCommand, "hermes -p 'helena' mcp add hookfeed --url 'http://127.0.0.1:47321/mcp' --auth header")
+        XCTAssertEqual(original.text, updated.text)
+        XCTAssertTrue(plain.examples.filter { $0.id != "hermes" }.allSatisfy { $0.setupCommand == nil })
+    }
+
     func testEveryRegisteredRemoteSnippetAppearsWithConnectionValues() {
         let url = "https://mac.tailnet.ts.net"
         let token = "test-token"

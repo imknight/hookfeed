@@ -70,6 +70,12 @@ final class SnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testRemoteHermesSetup() throws {
+        try snapshot(RemoteTokenSheet(url: "https://mac.tailnet.ts.net", token: "hf_example_token", expanded: ["hermes"], done: {}),
+                     name: "remote-hermes-setup", width: 620)
+    }
+
+    @MainActor
     func testRemoteTab() throws {
         let clock = Date(timeIntervalSince1970: 1_792_800_000)
         let connections = try RemoteConnections(store: MemoryRemoteSecrets())

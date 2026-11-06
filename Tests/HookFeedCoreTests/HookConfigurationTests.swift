@@ -122,20 +122,35 @@ final class HookConfigurationTests: XCTestCase {
             XCTAssertThrowsError(try HookConfiguration.merge(value, agent: .claudeCode, command: command))
         }
     }
-    func testGeminiMergePreservesOtherSettingsAndHooks() throws {
-        let command = "'/new/hookfeed' hook gemini-cli"
-        let original = try HookConfiguration.parse(Data(#"{"mcpServers":{"keep":{"command":"keep"}},"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"other"}]}],"AfterAgent":[{"hooks":[{"type":"command","command":"keep"}]}]}}"#.utf8))
-        let merged = try HookConfiguration.merge(original, agent: .geminiCLI, command: command)
-        XCTAssertEqual(merged["mcpServers"] as? NSDictionary, original["mcpServers"] as? NSDictionary)
-        let hooks = try XCTUnwrap(merged["hooks"] as? [String: Any])
-        XCTAssertEqual(hooks["SessionStart"] as? NSArray, (original["hooks"] as? [String: Any])?["SessionStart"] as? NSArray)
-        XCTAssertEqual((hooks["AfterAgent"] as? [Any])?.count, 2)
-        XCTAssertEqual(try HookConfiguration.merge(merged, agent: .geminiCLI, command: command) as NSDictionary, merged as NSDictionary)
-        XCTAssertEqual(try HookConfiguration.merge(merged, agent: .geminiCLI, command: command, removing: true) as NSDictionary, original as NSDictionary)
-        let fresh = try HookConfiguration.merge([:], agent: .geminiCLI, command: command)
-        for groups in (fresh["hooks"] as! [String: [[String: Any]]]).values {
-            XCTAssertEqual((groups[0]["hooks"] as! [[String: Any]])[0]["timeout"] as? Int, 1000)
-        }
+    func testAntigravityRemovesRetiredHandlersWithoutChangingOtherHooks() throws {
+        let command = "'/new/hookfeed' hook antigravity"
+        let original: [String: Any] = [
+            "imported": ["enabled": true,
+                         "Stop": [["command": "'/old/Knight'\\''s Apps/hookfeed' hook gemini-cli"],
+                                  ["command": "echo hookfeed hook gemini-cli"],
+                                  ["command": "hookfeed hook gemini-cli && keep"]],
+                         "PreToolUse": [["matcher": "run_command", "hooks": [
+                            ["type": "command", "command": "hookfeed hook gemini-cli"],
+                            ["type": "command", "command": "keep"]]]]],
+            "obsolete": ["enabled": true, "Stop": [["command": "hookfeed hook gemini-cli"]]],
+            "hooks": ["AfterAgent": [["hooks": [["type": "command", "command": "hookfeed hook gemini-cli"]]]]],
+            "unrelated": ["Stop": [["command": "other"]]]
+        ]
+        let merged = try HookConfiguration.merge(original, agent: .antigravity, command: command)
+        let imported = try XCTUnwrap(merged["imported"] as? [String: Any])
+        XCTAssertEqual((imported["Stop"] as? [[String: String]])?.map { $0["command"] },
+                       ["echo hookfeed hook gemini-cli", "hookfeed hook gemini-cli && keep"])
+        let preToolUse = try XCTUnwrap(imported["PreToolUse"] as? [[String: Any]])
+        XCTAssertEqual((preToolUse[0]["hooks"] as? [[String: String]])?.first?["command"], "keep")
+        XCTAssertEqual((preToolUse[0]["hooks"] as? [Any])?.count, 1)
+        XCTAssertEqual(preToolUse[0]["matcher"] as? String, "run_command")
+        XCTAssertNil(merged["obsolete"])
+        XCTAssertNil(merged["hooks"])
+        XCTAssertEqual(merged["unrelated"] as? NSDictionary, original["unrelated"] as? NSDictionary)
+        XCTAssertEqual(try HookConfiguration.merge(merged, agent: .antigravity, command: command) as NSDictionary, merged as NSDictionary)
+        let removed = try HookConfiguration.merge(original, agent: .antigravity, command: command, removing: true)
+        XCTAssertNil(removed["obsolete"])
+        XCTAssertNil(removed["hookfeed"])
     }
 
 }

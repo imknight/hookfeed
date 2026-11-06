@@ -45,12 +45,12 @@ public struct Integration: Identifiable, Sendable {
                         .init(noun: "configuration", note: nil, text: { IntegrationPrompts.codexNotify(cliPath: $0) })
                     ], prompt: { IntegrationPrompts.codexPrompt(cliPath: $0) }),
         Integration(id: "hermes", name: "Hermes Agent",
-                    summary: "Paste the setup prompt into Hermes. It adds HookFeed under mcp_servers in ~/.hermes/config.yaml, asks you to run /reload-mcp, sends a test, and saves when-to-send rules to its memory.",
+                    summary: "Paste the setup prompt into Hermes. It adds HookFeed under mcp_servers in your active profile's config.yaml (default: ~/.hermes/config.yaml), asks you to run /reload-mcp, sends a test, and saves when-to-send rules to its memory.",
                     promise: "Agent decides when to send", route: .mcp, configDirectory: ".hermes", executable: "hermes", rulesSource: "hermes",
-                    remoteSnippet: .init(note: "Merge into ~/.hermes/config.yaml on the remote machine, run /reload-mcp, then paste the rules from Settings › Integrations › Hermes Agent.", text: { IntegrationPrompts.hermesRemote(url: $0, token: $1) }),
+                    remoteSnippet: .init(note: "Use the setup command above, or merge this YAML into your active Hermes profile's config.yaml (default: ~/.hermes/config.yaml). Run /reload-mcp in that profile, then paste the rules from Settings › Integrations › Hermes Agent.", text: { IntegrationPrompts.hermesRemote(url: $0, token: $1) }),
                     snippets: [
                         .init(noun: "configuration", note: nil, text: { IntegrationPrompts.hermes(cliPath: $0) }),
-                        .init(noun: "example message", note: "Hermes on another Mac or server? Create a connection in Remote; the token sheet shows the url and headers version.", text: { _ in IntegrationPrompts.hermesSample })
+                        .init(noun: "example message", note: "For a Hermes setup command with an optional profile, create a connection in Remote. Its token sheet includes the command and the URL/headers YAML alternative.", text: { _ in IntegrationPrompts.hermesSample })
                     ], prompt: { IntegrationPrompts.hermesPrompt(cliPath: $0) }),
         Integration(id: "openclaw", name: "OpenClaw",
                     summary: "Connect through MCP in ~/.openclaw/openclaw.json, then save the when-to-send rules in your agent workspace. For another machine or server, use Settings → Remote.",
@@ -68,18 +68,12 @@ public struct Integration: Identifiable, Sendable {
                     remoteSnippet: .init(note: "Generic Streamable HTTP MCP setup. Use your Grok Bot client's documented config format and save the when-to-send rules with source grokbot.", text: { IntegrationPrompts.mcpRemote(url: $0, token: $1) }),
                     snippets: [.init(noun: "MCP configuration", note: "Generic example; adapt to your client's documented MCP format.", text: { IntegrationPrompts.mcp(cliPath: $0) })],
                     prompt: { IntegrationPrompts.grokbotPrompt(cliPath: $0) }),
-        Integration(id: "antigravity", name: "Google Antigravity",
-                    summary: "Merge into ~/.gemini/config/hooks.json. Stop reports completed runs and failures once background tasks finish. Permission and input requests are not reported.",
+        Integration(id: "antigravity", name: "Antigravity CLI (agy)",
+                    summary: "Connect agy through ~/.gemini/config/hooks.json. Stop reports completed runs and failures once background tasks finish. Permission and input requests are not reported.",
                     promise: "Completions + failures", route: .hooks(.antigravity), configDirectory: ".gemini/antigravity", executable: "agy", rulesSource: nil,
-                    remoteSnippet: .init(note: "Add to the Antigravity MCP config on the remote machine. Remote MCP sends only when the agent decides to; completion hooks need HookFeed on the same Mac.", text: { IntegrationPrompts.antigravityRemote(url: $0, token: $1) }),
+                    remoteSnippet: .init(note: "Merge into ~/.gemini/config/mcp_config.json on the machine running agy. Remote MCP sends only when the agent decides to; completion hooks need HookFeed on the same Mac.", text: { IntegrationPrompts.antigravityRemote(url: $0, token: $1) }),
                     snippets: [.init(noun: "configuration", note: nil, text: { IntegrationPrompts.antigravity(cliPath: $0) })],
                     prompt: { IntegrationPrompts.antigravityPrompt(cliPath: $0) }),
-        Integration(id: "gemini-cli", name: "Gemini CLI",
-                    summary: "Merge into ~/.gemini/settings.json. AfterAgent updates a session thread; Notification reports tool permission requests.",
-                    promise: "Completions + approvals", route: .hooks(.geminiCLI), configDirectory: ".gemini", executable: "gemini", rulesSource: nil,
-                    remoteSnippet: .init(note: "Merge under mcpServers in ~/.gemini/settings.json on the remote machine. Remote MCP sends only when the agent decides to; completion hooks need HookFeed on the same Mac.", text: { IntegrationPrompts.geminiRemote(url: $0, token: $1) }),
-                    snippets: [.init(noun: "configuration", note: nil, text: { IntegrationPrompts.gemini(cliPath: $0) })],
-                    prompt: { IntegrationPrompts.geminiPrompt(cliPath: $0) }),
         Integration(id: "cursor", name: "Cursor",
                     summary: "Merge stop hooks into ~/.cursor/hooks.json for local completions. Use MCP for agent-requested updates; cloud agents need separate setup.",
                     promise: "Completions", route: .hooks(.cursor), configDirectory: ".cursor", executable: "cursor-agent",
@@ -98,7 +92,6 @@ extension HookAgent {
         case .claudeCode: return [("Stop", ""), ("Notification", "permission_prompt|elicitation_dialog|agent_needs_input")]
         case .codex: return [("Stop", ""), ("PermissionRequest", "")]
         case .antigravity: return [("Stop", "")]
-        case .geminiCLI: return [("AfterAgent", ""), ("Notification", "ToolPermission")]
         case .cursor: return [("stop", "")]
         }
     }

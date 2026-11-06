@@ -36,6 +36,11 @@ final class ConnectAllTests: XCTestCase {
         await model.refresh()
         await model.apply()
         XCTAssertNil(model.outcomes["antigravity"])
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: home.appendingPathComponent(".gemini/settings.json"))
+        await model.refresh()
+        XCTAssertTrue(model.items.isEmpty)
+        XCTAssertNil(model.states["gemini-cli"])
         try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini/antigravity"), withIntermediateDirectories: true)
         await model.refresh()
         XCTAssertEqual(model.items.map(\.id), ["antigravity"])
@@ -149,23 +154,6 @@ final class ConnectAllTests: XCTestCase {
         XCTAssertTrue(model.items.isEmpty)
         let calls = await runner.calls
         XCTAssertTrue(calls.isEmpty)
-    }
-
-    func testGeminiConnectsWhenDetectedAndSkipsWhenAbsent() async throws {
-        let home = home!
-        let model = ConnectAllModel(home: home, searchPath: { "" }, cliPath: cli, runner: RecordingRunner(),
-                                    configPath: { home.appendingPathComponent($0.relativeConfigPath) }, fallbackDirectories: [])
-        await model.refresh()
-        XCTAssertTrue(model.items.isEmpty)
-        try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
-        try Data("{}".utf8).write(to: home.appendingPathComponent(".gemini/settings.json"))
-        await model.refresh()
-        XCTAssertEqual(model.items.map(\.id), ["gemini-cli"])
-        await model.apply()
-        guard case .connected = model.outcomes["gemini-cli"] else { return XCTFail("Not connected") }
-        XCTAssertFalse(try HookInstaller.preview(agent: .geminiCLI, path: home.appendingPathComponent(".gemini/settings.json"), cliPath: cli).hasChanges)
-        await model.refresh()
-        XCTAssertTrue(model.items.isEmpty)
     }
 
 }

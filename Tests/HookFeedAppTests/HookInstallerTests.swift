@@ -100,19 +100,25 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertThrowsError(try removal.apply())
         XCTAssertEqual(try Data(contentsOf: path), modified)
     }
-    func testGeminiInstallAndStaleStatus() async throws {
+    func testRetiredImportedHookNeedsUpdateAndIsBackedUpBeforeMigration() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let path = directory.appendingPathComponent(".gemini/settings.json")
-        let old = try HookInstaller.preview(agent: .geminiCLI, path: path, cliPath: "/old/hookfeed")
-        XCTAssertNil(try old.apply())
-        XCTAssertFalse(try HookInstaller.preview(agent: .geminiCLI, path: path, cliPath: "/old/hookfeed").hasChanges)
-        let state = await IntegrationStatus.state(for: Integration.named("gemini-cli")!, detection: Detection(configDirectory: true, executable: nil), cliPath: "/new/hookfeed", runner: RecordingRunner(), configPath: { _ in path })
+        let path = directory.appendingPathComponent("hooks.json")
+        let original = Data(#"{"imported":{"Stop":[{"type":"command","command":"/old/hookfeed hook gemini-cli"}]},"other":{"Stop":[{"command":"keep"}]}}"#.utf8)
+        try original.write(to: path)
+        let state = await IntegrationStatus.state(for: Integration.named("antigravity")!, detection: Detection(configDirectory: true, executable: nil),
+                                                  cliPath: "/new/hookfeed", runner: RecordingRunner(), configPath: { _ in path })
         XCTAssertEqual(state, .needsUpdate)
-        let before = try Data(contentsOf: path)
-        let plan = try HookInstaller.preview(agent: .geminiCLI, path: path, cliPath: "/new/hookfeed")
-        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(plan.apply())), before)
-        XCTAssertFalse(try HookInstaller.preview(agent: .geminiCLI, path: path, cliPath: "/new/hookfeed").hasChanges)
+        let plan = try HookInstaller.preview(agent: .antigravity, path: path, cliPath: "/new/hookfeed")
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(plan.apply())), original)
+        let migrated = try HookConfiguration.parse(Data(contentsOf: path))
+        XCTAssertNil(migrated["imported"])
+        XCTAssertEqual(migrated["other"] as? NSDictionary, ["Stop": [["command": "keep"]]] as NSDictionary)
+        XCTAssertFalse(try HookInstaller.preview(agent: .antigravity, path: path, cliPath: "/new/hookfeed").hasChanges)
+        let connected = await IntegrationStatus.state(for: Integration.named("antigravity")!, detection: Detection(configDirectory: true, executable: nil),
+                                                      cliPath: "/new/hookfeed", runner: RecordingRunner(), configPath: { _ in path })
+        XCTAssertEqual(connected, .connected)
     }
 
 }

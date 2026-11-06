@@ -7,11 +7,12 @@ struct RemoteTokenSheetModel {
         let title: String
         let text: String
         var note: String? = nil
+        var setupCommand: String? = nil
         var collapsible = true
     }
     let examples: [Example]
 
-    init(url: String, token: String, integrations: [Integration] = Integration.all) {
+    init(url: String, token: String, hermesProfile: String = "", integrations: [Integration] = Integration.all) {
         examples = [
             Example(id: "token", title: "Connection token", text: token, collapsible: false),
             Example(id: "command-line", title: "Command line",
@@ -20,7 +21,8 @@ struct RemoteTokenSheetModel {
                     text: "curl \(ShellText.quote(url + "/v1/messages")) \\\n  -H \(ShellText.quote("Authorization: Bearer " + token)) \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"title\":\"Done\",\"bot\":\"MyBot\"}'")
         ] + integrations.compactMap { integration in
             integration.remoteSnippet.map {
-                Example(id: integration.id, title: "\(integration.name) (MCP)", text: $0.text(url, token), note: $0.note)
+                Example(id: integration.id, title: "\(integration.name) (MCP)", text: $0.text(url, token), note: $0.note,
+                        setupCommand: integration.id == "hermes" ? IntegrationPrompts.hermesAddCommand(url: url, profile: hermesProfile) : nil)
             }
         } + [Example(id: "other-mcp", title: "Other MCP clients (streamable HTTP)",
                      text: IntegrationPrompts.mcpRemote(url: url, token: token))]
@@ -28,12 +30,17 @@ struct RemoteTokenSheetModel {
 }
 
 struct RemoteTokenSheet: View {
-    let model: RemoteTokenSheetModel
+    let url: String
+    let token: String
     let done: () -> Void
     @State private var expanded: Set<String>
+    @State private var hermesProfile = ""
+
+    var model: RemoteTokenSheetModel { RemoteTokenSheetModel(url: url, token: token, hermesProfile: hermesProfile) }
 
     init(url: String, token: String, expanded: Set<String> = [], done: @escaping () -> Void) {
-        model = RemoteTokenSheetModel(url: url, token: token)
+        self.url = url
+        self.token = token
         self.done = done
         _expanded = State(initialValue: expanded)
     }
@@ -52,6 +59,14 @@ struct RemoteTokenSheet: View {
                                 set: { if $0 { expanded.insert(example.id) } else { expanded.remove(example.id) } }
                             )) {
                                 VStack(alignment: .leading, spacing: 8) {
+                                    if let command = example.setupCommand {
+                                        TextField("Hermes profile (optional)", text: $hermesProfile)
+                                            .textFieldStyle(.roundedBorder)
+                                            .accessibilityLabel("Hermes profile (optional)")
+                                        CopyableCode(text: command, noun: "Hermes setup command")
+                                        Text("Confirm authentication, paste this connection's token when asked for API key / Bearer token, then enable the discovered tool. Use the token for this connection if Hermes offers a saved credential.")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
                                     if let note = example.note { Text(note).font(.caption).foregroundStyle(.secondary) }
                                     CopyableCode(text: example.text, noun: example.title)
                                 }.padding(.top, 8)

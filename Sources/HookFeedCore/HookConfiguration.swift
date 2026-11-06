@@ -1,14 +1,13 @@
 import Foundation
 
 public enum HookAgent: String, CaseIterable, Sendable {
-    case claudeCode = "claude-code", codex, antigravity, geminiCLI = "gemini-cli", cursor
+    case claudeCode = "claude-code", codex, antigravity, cursor
 
     public var relativeConfigPath: String {
         switch self {
         case .claudeCode: return ".claude/settings.json"
         case .codex: return ".codex/hooks.json"
         case .antigravity: return ".gemini/config/hooks.json"
-        case .geminiCLI: return ".gemini/settings.json"
         case .cursor: return ".cursor/hooks.json"
         }
     }
@@ -71,7 +70,6 @@ public enum HookConfiguration {
                         guard owns(entry, agent: agent, installedCommand: command) else { return entry }
                         var updated = entry
                         updated["command"] = command
-                        if agent == .geminiCLI { updated["timeout"] = 1000 }
                         return updated
                     }
                     return updated
@@ -83,7 +81,7 @@ public enum HookConfiguration {
                 return kept
             }
             if !removing, !found {
-                var group: [String: Any] = ["hooks": [["type": "command", "command": command, "timeout": agent == .geminiCLI ? 1000 : 1]]]
+                var group: [String: Any] = ["hooks": [["type": "command", "command": command, "timeout": 1]]]
                 if !matcher.isEmpty { group["matcher"] = matcher }
                 groups.append(group)
             }
@@ -96,11 +94,11 @@ public enum HookConfiguration {
     }
 
     private static func mergeAntigravity(_ original: [String: Any], command: String, removing: Bool) throws -> [String: Any] {
-        var result = original
+        var result = removingRetiredHooks(original)
         guard original["hookfeed"] == nil || original["hookfeed"] is [String: Any] else {
             throw ConfigurationError("The hookfeed definition must be a JSON object. No changes were made.")
         }
-        var definition = original["hookfeed"] as? [String: Any] ?? [:]
+        var definition = result["hookfeed"] as? [String: Any] ?? [:]
         guard definition["Stop"] == nil || definition["Stop"] is [[String: Any]] else {
             throw ConfigurationError("The Stop hooks must be an array of objects. No changes were made.")
         }
@@ -117,11 +115,49 @@ public enum HookConfiguration {
         return result
     }
 
+    private static func removingRetiredHooks(_ original: [String: Any]) -> [String: Any] {
+        var result = original
+        for (name, value) in original {
+            guard var definition = value as? [String: Any] else { continue }
+            var changed = false
+            for (event, value) in definition {
+                guard let entries = value as? [[String: Any]] else { continue }
+                let remaining = entries.compactMap { entry -> [String: Any]? in
+                    if let command = entry["command"] as? String,
+                       (entry["type"] == nil || entry["type"] as? String == "command"),
+                       matchesHookCommand(command, agent: "gemini-cli") { return nil }
+                    guard let hooks = entry["hooks"] as? [[String: Any]] else { return entry }
+                    let kept = hooks.filter { hook in
+                        guard let command = hook["command"] as? String,
+                              hook["type"] == nil || hook["type"] as? String == "command" else { return true }
+                        return !matchesHookCommand(command, agent: "gemini-cli")
+                    }
+                    guard kept.count != hooks.count else { return entry }
+                    if kept.isEmpty, Set(entry.keys).isSubset(of: ["hooks", "matcher"]) { return nil }
+                    var updated = entry
+                    updated["hooks"] = kept
+                    return updated
+                }
+                guard (remaining as NSArray) != (entries as NSArray) else { continue }
+                changed = true
+                if remaining.isEmpty { definition.removeValue(forKey: event) }
+                else { definition[event] = remaining }
+            }
+            if changed, Set(definition.keys).isSubset(of: ["enabled"]) { result.removeValue(forKey: name) }
+            else { result[name] = definition }
+        }
+        return result
+    }
+
     private static func owns(_ entry: [String: Any], agent: HookAgent, installedCommand: String) -> Bool {
         guard (entry["type"] as? String == "command" || ((agent == .antigravity || agent == .cursor) && entry["type"] == nil)), let command = entry["command"] as? String else { return false }
         if command == installedCommand { return true }
+        return matchesHookCommand(command, agent: agent.rawValue)
+    }
+
+    private static func matchesHookCommand(_ command: String, agent: String) -> Bool {
         let executable = #"(?:'(?:[^']|'\\'')*/hookfeed'|"[^"]*/hookfeed"|[^\s'";|&]+/hookfeed|hookfeed)"#
-        return command.range(of: "^" + executable + "\\s+hook\\s+" + agent.rawValue + "\\s*$", options: .regularExpression) != nil
+        return command.range(of: "^" + executable + "\\s+hook\\s+" + agent + "\\s*$", options: .regularExpression) != nil
     }
 }
 

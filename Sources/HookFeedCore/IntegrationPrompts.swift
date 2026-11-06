@@ -16,23 +16,13 @@ public enum IntegrationPrompts {
         json(["mcpServers": ["hookfeed": ["serverUrl": url + "/mcp", "headers": ["Authorization": "Bearer " + token]]]])
     }
     public static func antigravityPrompt(cliPath: String) -> String {
-        hookPrompt(agent: "Google Antigravity", file: "~/.gemini/config/hooks.json", config: antigravity(cliPath: cliPath),
-                   after: "Start a new Antigravity session and check /hooks. Send a completion only when Stop reports fullyIdle; report errors as failures. These hooks do not report permission or input requests.")
+        hookPrompt(agent: "Antigravity CLI (agy)", file: "~/.gemini/config/hooks.json", config: antigravity(cliPath: cliPath),
+                   after: "Before starting a new agy session, reconnect Antigravity in HookFeed Settings to remove retired HookFeed handlers from its hooks.json. Then check /hooks. Send a completion only when Stop reports fullyIdle; report errors as failures. These hooks do not report permission or input requests.")
     }
 
     public static func codexHooks(cliPath: String) -> String {
         let hook: [String: Any] = ["type": "command", "command": "\(ShellText.quote(cliPath)) hook codex", "timeout": 1]
         return json(["hooks": ["Stop": [["hooks": [hook]]], "PermissionRequest": [["hooks": [hook]]]]])
-    }
-    public static func gemini(cliPath: String) -> String {
-        let hook: [String: Any] = ["type": "command", "command": "\(ShellText.quote(cliPath)) hook gemini-cli", "timeout": 1000]
-        return json(["hooks": ["AfterAgent": [["hooks": [hook]]], "Notification": [["matcher": "ToolPermission", "hooks": [hook]]]]])
-    }
-    public static func geminiRemote(url: String, token: String) -> String {
-        json(["mcpServers": ["hookfeed": ["httpUrl": url + "/mcp", "headers": ["Authorization": "Bearer " + token]]]])
-    }
-    public static func geminiPrompt(cliPath: String) -> String {
-        hookPrompt(agent: "Gemini CLI", file: "~/.gemini/settings.json", config: gemini(cliPath: cliPath), after: "Restart Gemini CLI and check /hooks to confirm hooks are enabled. Completion and tool permission updates are automatic.")
     }
     public static func cursorHooks(cliPath: String) -> String {
         json(["version": 1, "hooks": ["stop": [["command": "\(ShellText.quote(cliPath)) hook cursor"]]]])
@@ -64,6 +54,10 @@ public enum IntegrationPrompts {
     }
     public static func hermesRemote(url: String, token: String) -> String {
         "mcp_servers:\n  hookfeed:\n    url: \(jsonString(url + "/mcp"))\n    headers:\n      Authorization: \(jsonString("Bearer " + token))"
+    }
+    public static func hermesAddCommand(url: String, profile: String = "") -> String {
+        let profileArgument = profile.isEmpty ? "" : " -p \(ShellText.quote(profile))"
+        return "hermes\(profileArgument) mcp add hookfeed --url \(ShellText.quote(url + "/mcp")) --auth header"
     }
     public static func claudeRemote(url: String, token: String) -> String {
         "claude mcp add --transport http hookfeed \(ShellText.quote(url + "/mcp")) \\\n  --header \(ShellText.quote("Authorization: Bearer " + token))"
@@ -158,7 +152,7 @@ public enum IntegrationPrompts {
     public static func hermesPrompt(cliPath: String) -> String {
         """
         Connect yourself to HookFeed, my local Mac inbox for agent updates.
-        1. Back up ~/.hermes/config.yaml, then merge this into it. Keep every other setting and MCP server:
+        1. Back up your active Hermes profile's config.yaml (default: ~/.hermes/config.yaml), then merge this into it. Profiles keep their own config; use the profile you run. Keep every other setting and MCP server:
 
         \(hermes(cliPath: cliPath))
 

@@ -18,9 +18,23 @@ Open **Settings → Integrations → Review and connect…**, or **Connect detec
 
 Hermes remains copy-only: its tested CLI prompts during MCP installation, so it cannot safely use Connect all or an Install button yet. Use **Copy setup prompt** or `hookfeed prompt hermes`. HookFeed never writes Hermes YAML. The two-agent automated sheet snapshot exercises a synthetic MCP command; production Connect all currently offers detected Claude Code and Codex installations.
 
+### Hermes setup command and profiles
+
+Create a connection in **Settings → Remote**, then expand **Hermes Agent (MCP)** in its token sheet. Enter a profile name if needed and copy the setup command:
+
+```sh
+hermes -p 'helena' mcp add hookfeed --url 'https://your-mac.example/mcp' --auth header
+```
+
+An empty profile omits `-p` and uses Hermes's active profile. Confirm authentication, paste this connection's token at the **API key / Bearer token** prompt, and enable the discovered tool. If a credential already exists, replace it with this connection's token. Run `/reload-mcp` in the same profile. Hermes saves the bearer header and credential in that profile; the command does not embed the token. Existing YAML and setup prompts remain available and must target the same profile's config.
+
+The URL command is offered only in the Remote token sheet because local setup normally uses stdio. A localhost connection works only when Hermes runs on the same Mac; use the selected Tailscale connection URL for another machine. Both use the `/mcp` endpoint and `Authorization: Bearer` authentication.
+
+Checked on 7 November 2026 with Hermes **0.22.5 (2026.9.24)**, commit `bf0203a794a0`, against its installed help/source, [MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp), and [profile reference](https://hermes-agent.nousresearch.com/docs/reference/profile-commands). This version has no token/header flag: `--auth header` prompts and persists the token in the active profile. Isolated acceptance verified installation with and without `-p`, profile-scoped token persistence, and two stored messages sent through the installed Hermes MCP handler. Live Tailscale delivery and an interactive `/reload-mcp` session were not exercised.
+
 ## Setup prompts from the terminal
 
-Run `hookfeed prompt hermes` and paste the output into Hermes to set up its stdio MCP server and when-to-send rules. The same prompts are available under **Settings → Integrations → Copy setup prompt**. Supported agents: `hermes`, `mcp`, `claude-code`, `codex`, `openclaw`, `antigravity`, `gemini-cli`, and `cursor`.
+Run `hookfeed prompt hermes` and paste the output into Hermes to set up its stdio MCP server and when-to-send rules. The same prompts are available under **Settings → Integrations → Copy setup prompt**. Supported agents: `hermes`, `mcp`, `claude-code`, `codex`, `openclaw`, `antigravity`, and `cursor`.
 
 Use `hookfeed prompt hermes --rules-only` for just the rules, including source `"hermes"`. `--rules-only` works for every agent. Setup prompts resolve the running executable's symlinks, so configs use the actual bundled helper path. Printing a prompt does not change agent configuration.
 
@@ -31,6 +45,14 @@ The sidebar offers **Needs attention**, **Unread**, **All**, projects, bots, and
 ## Return to work and connect tools
 
 Thread details can open an existing project folder in your chosen editor, reveal it in Finder, copy a supported agent resume command, or open a supplied source link. Updates recorded by the current `hookfeed run` offer **Copy command** (`⌥⌘C`) to rerun the wrapped command; **Copy resume command** remains `⇧⌘C`. Failed runs include the last 20 stderr lines (up to 8 KiB) verbatim. All stderr still streams to the terminal; stdin and stdout keep their terminal descriptors, while stderr uses a pipe, which may affect automatic color/TTY detection. Commands that exceed the 32 KiB body budget show **Command truncated…**; review them before copying. Older run updates remain readable, but Copy command is hidden because old records have no CLI-written origin marker. A self-declared `run` source is insufficient; the marker prevents accidental source spoofing, not tampering with the local database. Run copied commands in your terminal. Claude Code hooks report completions and selected permission or input requests; Codex Stop and PermissionRequest hooks report completions and approval requests; legacy notify reports completions only. Reinstall and review both hooks through `/hooks` when upgrading a Stop-only setup. Arbitrary input questions are not covered. Other MCP clients send when the agent calls the tool. Scripts can use `hookfeed send` or wrap a command with `hookfeed run --project MyProject -- make test`. Choose one delivery route per agent to avoid duplicate updates.
+
+## Antigravity CLI (`agy`)
+
+The Antigravity integration uses `Stop` hooks in `~/.gemini/config/hooks.json` to report completions and failures once `fullyIdle` is true. It does not report permission or input requests. Remote MCP configuration goes in `~/.gemini/config/mcp_config.json`, with `serverUrl` pointing to the connection URL plus `/mcp` and an `Authorization: Bearer …` header.
+
+The old Gemini CLI card and `hook gemini-cli` command have been removed. Before starting an `agy` session, open **Settings → Integrations → Antigravity CLI (agy)** and install or update its hooks. Imported `hook gemini-cli` handlers in the global hooks file show **Needs update**; installation backs up that file, removes only those retired HookFeed handlers, and installs the current `Stop` hook while preserving other hooks. There is no compatibility alias. Hooks left in the old Gemini settings file are not loaded by current Antigravity CLI; workspace and plugin hook files must be updated separately if you added HookFeed there manually.
+
+Checked on 7 November 2026 against installed `agy 1.5.2` and Google's [hooks documentation](https://antigravity.google/docs/hooks), [MCP documentation](https://antigravity.google/docs/mcp), and [migration guide](https://antigravity.google/docs/cli/gcli-migration/). The documented lifecycle events still have no dedicated permission/input event. A real no-tools `agy` session delivered a `fullyIdle=true` completion into a disposable HookFeed inbox using the rebuilt CLI; user hooks and credentials were unchanged.
 
 ## Settings and local storage
 

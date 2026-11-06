@@ -41,7 +41,6 @@ enum HookInstaller {
         case .claudeCode: key = "HOOKFEED_CLAUDE_CONFIG_PATH"
         case .codex: key = "HOOKFEED_CODEX_CONFIG_PATH"
         case .antigravity: key = "HOOKFEED_ANTIGRAVITY_CONFIG_PATH"
-        case .geminiCLI: key = "HOOKFEED_GEMINI_CONFIG_PATH"
         case .cursor: key = "HOOKFEED_CURSOR_CONFIG_PATH"
         }
         if let path = ProcessInfo.processInfo.environment[key] { return URL(fileURLWithPath: path) }
