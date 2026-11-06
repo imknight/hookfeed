@@ -62,4 +62,3 @@ public struct CommandResult: Equatable, Sendable {
         self.stderr = stderr
     }
 }
-
