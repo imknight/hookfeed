@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import plistlib
 import signal
 import sqlite3
 import subprocess
@@ -57,7 +58,8 @@ def main():
         with sqlite3.connect(environment["HOOKFEED_STORE_PATH"]) as database:
             database.execute("DELETE FROM messages")
 
-        assert b"0.1.0" in invoke("--version").stdout
+        version = plistlib.loads((ROOT / "Config/Info.plist").read_bytes())["CFBundleShortVersionString"]
+        assert invoke("--version").stdout.decode().strip() == version
         assert b"send" in invoke("--help").stdout
         prompts = json.loads((FIXTURES / "setup-prompts.json").read_text())
         for agent in ("hermes", "mcp", "claude-code", "codex", "openclaw", "grokbot", "antigravity", "cursor"):

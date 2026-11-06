@@ -1,6 +1,6 @@
 # HookFeed app guide
 
-Version 0.1.0 · macOS 14 or later · 24 October 2026
+Version 0.2.0 · macOS 14 or later · 7 November 2026
 
 HookFeed brings updates from local agents and scripts into one native Mac inbox. Use it to notice completed work, failures, and requests for input, then return to the relevant project or terminal session. Messages are stored locally in SQLite; no account, API key, or model inference is required.
 
@@ -62,7 +62,7 @@ See the [README](../../README.md) and [setup instructions](../../SETUP.md) for b
 
 ## Queued updates and bursts
 
-HookFeed uses WAL for concurrent inbox reads and writes. Busy local hooks save normalized updates in the private `spool/` folder beside the database. The app drains up to 500 files per pass on launch, signals and its five-second timer, without blocking the UI. When the app is closed, `hookfeed drain` empties the queue. No background daemon runs.
+HookFeed uses WAL for concurrent inbox reads and writes. Busy local hooks save normalized updates in the private `spool/` folder beside the database. The app drains up to 500 files per pass on launch, signals and its five-second timer, without blocking the UI. When the app is closed, `hookfeed drain` empties the queue. Local CLI delivery does not require the app or the optional remote background receiver.
 
 Queued updates keep their original queued time and are deduplicated if replayed after a crash. Invalid files move to `spool/rejected/`. If an update is missing, run `hookfeed drain` and check that folder, disk space, permissions and the hook log. The queue holds at most 10,000 files; if it cannot accept an update, the hook logs the failure and still exits promptly with no stdout. `HOOKFEED_STORE_PATH` and `HOOKFEED_LOG_PATH` allow isolated stores and logs.
 
@@ -128,7 +128,7 @@ export PATH="$HOME/.local/bin:$PATH"
 hookfeed --version
 ```
 
-The version should be `0.1.0`. Installation is for the current user only.
+The version should be `0.2.0`. Installation is for the current user only.
 
 To run from the menu bar, turn off **Settings → General → Show in Dock**. The
 choice is saved and applies immediately. Use **Open Inbox** in the menu bar to

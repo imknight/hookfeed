@@ -13,7 +13,7 @@ final class RemoteMCP: @unchecked Sendable {
     private final class Session {
         let owner: String
         let createdAt = Date()
-        let server = Server(name: "hookfeed", version: "0.1.0",
+        let server = Server(name: "hookfeed", version: "0.2.0",
                             instructions: "Store updates in HookFeed's human inbox. Receipt means stored, not seen. Remote connections can only send; inbox reading is unavailable.",
                             capabilities: .init(tools: .init(listChanged: false)), configuration: .strict)
         let transport: StatefulHTTPServerTransport

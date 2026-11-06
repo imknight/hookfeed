@@ -8,7 +8,7 @@ struct HookFeedCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "hookfeed",
         abstract: "A local inbox for agent updates.",
-        version: "0.1.0",
+        version: "0.2.0",
         subcommands: [Send.self, List.self, Run.self, Hook.self, MCPCommand.self, Prompt.self, Drain.self, Serve.self]
     )
 

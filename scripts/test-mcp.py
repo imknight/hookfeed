@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import plistlib
 import queue
 import sqlite3
 import subprocess
@@ -57,6 +58,7 @@ class StdioClient:
         response = self.request("initialize", {"protocolVersion": "2025-11-25", "clientInfo": {"name": "hookfeed-jsonrpc-test", "version": "1.0.0"}, "capabilities": {}})
         assert "error" not in response, response
         assert response["result"]["serverInfo"]["name"] == "hookfeed"
+        assert response["result"]["serverInfo"]["version"] == plistlib.loads((ROOT / "Config/Info.plist").read_bytes())["CFBundleShortVersionString"]
         assert "tools" in response["result"]["capabilities"]
         self.write({"jsonrpc": "2.0", "method": "notifications/initialized"})
         return response

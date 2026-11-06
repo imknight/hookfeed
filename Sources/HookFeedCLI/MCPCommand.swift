@@ -15,7 +15,7 @@ struct MCPCommand: AsyncParsableCommand {
             instructions += " --read-all is enabled: list_messages allows reading every project without marking messages read."
         }
         let server = Server(
-            name: "hookfeed", version: "0.1.0", instructions: instructions,
+            name: "hookfeed", version: "0.2.0", instructions: instructions,
             capabilities: .init(tools: .init(listChanged: false)), configuration: .strict
         )
         await server.withMethodHandler(ListTools.self) { _ in

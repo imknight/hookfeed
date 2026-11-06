@@ -26,7 +26,7 @@ Repository and public-key configuration is ready. A dry run reads the public rep
 
 ## Version, test, dry run
 
-1. Set `CFBundleShortVersionString` to `X.Y.Z` and `CFBundleVersion` to a positive integer greater than every previously shipped build (including withdrawn releases). Never reuse a build number. Commit these changes with a `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`, or use an annotated tag's message for release notes.
+1. Set `CFBundleShortVersionString` to `X.Y.Z` and `CFBundleVersion` to a positive integer greater than every previously shipped build (including withdrawn releases). Never reuse a build number. Match the version strings in `Sources/HookFeedCLI/HookFeedCommand.swift`, `Sources/HookFeedCLI/MCPCommand.swift`, and `Sources/HookFeedCore/Remote/RemoteMCP.swift`. Commit these changes with a `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`, or use an annotated tag's message for release notes.
 2. Run the local checks below. No snapshot regeneration is required for the General settings update section.
 3. Dispatch **Release** on the desired branch with `tag: vX.Y.Z` and `dry_run: true`. The tag need not exist for a branch dry run; its version must match Info.plist.
 4. Download the workflow artifact. Test the DMG on another Mac or a fresh user account before publishing.
